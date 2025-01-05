@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Würfelkonfigurator mit Tooltip, Rahmen-Fix & Zoom</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      position: relative;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: relative;
+    }
+
+    #toolbar {
+      padding: 5px;
+      background: #eee;
+      flex: 0 0 auto;
+    }
+
+    #raster-container {
+      position: relative;
+      flex: 1;
+      overflow: auto; /* Damit der Raster-Bereich bei Bedarf scrollt */
+    }
+
+    /* 
+      WICHTIG: Wir wenden gleich in JS transform: scale() auf #raster an,
+      deswegen darf #raster nicht selbst scrollen (damit das Skalieren sauber funktioniert).
+      Der Scroll soll über #raster-container erfolgen.
+    */
+    #raster {
+      position: absolute;
+      top: 50px;
+      left: 50px;
+      right: 50px;
+      bottom: 50px;
+      background-size: 50px 50px;
+      background-image:
+        linear-gradient(to right, #ccc 1px, transparent 1px),
+        linear-gradient(to bottom, #ccc 1px, transparent 1px);
+      cursor: pointer;
+      /* transform und transform-origin werden dynamisch per JS gesetzt */
+    }
+
+    .cube-marker {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      background: rgba(141,207,240,0.5);
+      border: 1px solid #333;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #333;
+      cursor: grab;
+    }
+
+    .side-label {
+      position: absolute;
+      font-weight: bold;
+      background: #fff;
+      padding: 2px 5px;
+      border: 1px solid #333;
+      font-size: 14px;
+    }
+
+    #label-n {
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    #label-s {
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    #label-w {
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    #label-o {
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    #detail-table, #sum-table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    #detail-table th, #detail-table td, #sum-table th, #sum-table td {
+      border: 1px solid #ccc;
+      padding: 5px;
+      text-align: center;
+    }
+
+    #details-section {
+      flex: 0 0 auto;
+      max-height: 40%; /* Detailbereich auf max. 40% der Höhe begrenzen */
+      overflow: auto;
+      background: #fff;
+      position: relative;
+    }
+
+    .extra-items-list {
+      margin:10px 0;
+      border:1px solid #ccc;
+      padding:5px;
+      max-height:100px;
+      overflow:auto;
+    }
+
+    .increment-extra-item-btn,
+    .decrement-extra-item-btn {
+      cursor:pointer;
+      margin-left:5px;
+      background:#ddd;
+      border:1px solid #333;
+      padding:2px;
+    }
+
+    #item-database-overlay {
+      display:none; 
+      position:absolute; 
+      top:100px; 
+      left:100px; 
+      background:#fff; 
+      border:1px solid #333; 
+      padding:20px; 
+      z-index:1000;
+      max-width: 600px;
+    }
+
+    #item-database-table {
+      border-collapse: collapse; 
+      width:100%;
+      margin-bottom:10px;
+    }
+
+    #item-database-table th, #item-database-table td {
+      border:1px solid #ccc; 
+      padding:5px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    #item-database-table input[type="number"],
+    #item-database-table input[type="text"] {
+      width:80px;
+    }
+
+    #config-overlay {
+      position: absolute;
+      background: #fff;
+      border: 1px solid #333;
+      padding: 10px;
+      display: none;
+      z-index: 999;
+    }
+
+    #close-overlay {
+      cursor: pointer;
+      color: red;
+    }
+
+    .item-database-container {
+      max-height:300px;
+      overflow-y:auto;
+      border:1px solid #333;
+    }
+
+    /* Tooltip-Element */
+    .cube-tooltip {
+      position: absolute;
+      pointer-events: none; /* Maus klickt "durch" den Tooltip hindurch */
+      background: #ffc;    /* angenehmer gelblicher Hintergrund */
+      border: 1px solid #ccc;
+      padding: 8px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      z-index: 99999;
+      display: none;
+      font-size: 12px;
+      max-width: 300px;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <button id="reset-btn">Reset</button>
+    <button id="export-pdf-btn">Als PDF exportieren</button>
+    <button id="export-xlsx-btn">Als Excel exportieren</button>
+    <button id="save-json-btn">Konf. Speichern</button>
+    <button id="load-json-btn">Konf. Laden</button>
+    <button id="load-config-btn">Datenbank laden</button>
+    <button id="export-config-btn">Datenbank exportieren</button>
+    <select id="filter-blumenkuebel">
+      <option value="all">Alle</option>
+      <option value="with">Nur Blumenkübel</option>
+      <option value="without">Ohne Blumenkübel</option>
+    </select>
+
+    <!-- NEU: Zoom Buttons -->
+    <button id="zoom-in-btn">Zoom +</button>
+    <button id="zoom-out-btn">Zoom -</button>
+  </div>
+
+  <div id="raster-container">
+    <div id="label-n" class="side-label">Metall (N)</div>
+    <div id="label-s" class="side-label">Metall (S)</div>
+    <div id="label-w" class="side-label">Holz (W)</div>
+    <div id="label-o" class="side-label">Holz (O)</div>
+    <div id="raster"></div>
+  </div>
+  
+  <div id="details-section">
+    <h2>Detail-Tabelle</h2>
+    <table id="detail-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Spalte (col)</th>
+          <th>Zeile (row)</th>
+          <th>Höhe</th>
+          <th>Blumenkübel/Deckel</th>
+          <th>N</th>
+          <th>S</th>
+          <th>W</th>
+          <th>O</th>
+          <th>Extra-Artikel (inkl. Rahmen)</th>
+          <th>Extra hinzufügen</th>
+          <th>Aktionen</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h2>Summen-Tabelle</h2>
+    <table id="sum-table">
+      <thead>
+        <tr>
+          <th>Element</th>
+          <th>Artikel-Nr.</th>
+          <th>Menge</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h3>Kosten & Gewicht</h3>
+    <p>Gesamtkosten: <span id="total-cost">0</span> €</p>
+    <p>Gesamtgewicht: <span id="total-weight">0</span> kg</p>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div id="cube-tooltip" class="cube-tooltip"></div>
+
+<div id="config-overlay">
+  <div>
+    <span id="close-overlay">[X]</span>
+  </div>
+  <h3>Würfel konfigurieren</h3>
+  <p id="overlay-info"></p>
+  <label>Höhe:
+    <select id="height-select">
+      <option value="1">1m (3/3)</option>
+      <option value="0.6">0,6m (2/3)</option>
+      <option value="0.3">0,3m (1/3)</option>
+    </select>
+  </label><br/><br/>
+  <label>
+    <input type="checkbox" id="planter-checkbox"/> Blumenkübel statt Deckel?
+  </label><br/><br/>
+
+  <h4>Extra-Artikel hinzufügen</h4>
+  <select id="extra-item-select"></select>
+  <button id="add-extra-item-btn">Hinzufügen</button>
+
+  <div class="extra-items-list" id="extra-items-list"></div>
+
+  <button id="save-cube-btn">Speichern</button>
+  <button id="delete-cube-btn" style="background:red; color:white;">Löschen</button>
+</div>
+
+<div id="item-database-overlay">
+  <h3>Artikeldatenbank</h3>
+  <input type="text" id="item-db-search" placeholder="Artikelnummer suchen...">
+  <div class="item-database-container">
+    <table id="item-database-table">
+      <thead>
+        <tr>
+          <th>Bezeichnung</th>
+          <th>Artikel-Nr.</th>
+          <th>Preis (€)</th>
+          <th>Gewicht (kg)</th>
+          <th>Löschen</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <h4>Neuen Artikel hinzufügen:</h4>
+  <label>Name: <input id="new-item-name" type="text"/></label><br/>
+  <label>Artikel-Nr.: <input id="new-item-artnr" type="text"/></label><br/>
+  <label>Preis: <input id="new-item-price" type="number" step="0.01"/></label><br/>
+  <label>Gewicht: <input id="new-item-weight" type="number" step="0.01"/></label><br/>
+  <button id="add-item-btn">Hinzufügen</button>
+  <button id="close-item-db-btn">Schließen</button>
+
+  <div class="category-selectors">
+    <h4>Standardzuordnung der Kategorien</h4>
+    <p>Wählen Sie, welcher Artikel für Metall (N/S), Holz (W/O) und Verbindungselemente verwendet werden soll.</p>
+    <label>Metall (N/S): <select id="metal-item-select"></select></label><br/>
+    <label>Holz (W/O): <select id="wood-item-select"></select></label><br/>
+    <label>Verbindungselement: <select id="connector-item-select"></select></label><br/>
+    <button id="update-category-btn">Aktualisieren</button>
+  </div>
+</div>
+
+<p style="text-align:center; margin:10px;">Config kann jetzt auch exportiert werden</p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  /* ---------------------------
+     Globale Variablen & Arrays
+     --------------------------- */
+  let cubes = [];
+  let currentCubeIndex = null; 
+  let selectedCubes = [];
+  let lastClickX = 0;
+  let lastClickY = 0;
+  let cubeIdCounter = 1;
+  
+  const raster = document.getElementById('raster');
+  const detailTableBody = document.querySelector('#detail-table tbody');
+  const sumTableBody = document.querySelector('#sum-table tbody');
+  const configOverlay = document.getElementById('config-overlay');
+  const heightSelect = document.getElementById('height-select');
+  const planterCheckbox = document.getElementById('planter-checkbox');
+  const saveCubeBtn = document.getElementById('save-cube-btn');
+  const closeOverlay = document.getElementById('close-overlay');
+  const resetBtn = document.getElementById('reset-btn');
+  const exportPdfBtn = document.getElementById('export-pdf-btn');
+  const exportXlsxBtn = document.getElementById('export-xlsx-btn');
+  const saveJsonBtn = document.getElementById('save-json-btn');
+  const loadJsonBtn = document.getElementById('load-json-btn');
+  const loadConfigBtn = document.getElementById('load-config-btn');
+  const exportConfigBtn = document.getElementById('export-config-btn');
+  const filterSelect = document.getElementById('filter-blumenkuebel');
+  const overlayInfo = document.getElementById('overlay-info');
+  const totalCostElem = document.getElementById('total-cost');
+  const totalWeightElem = document.getElementById('total-weight');
+  const deleteCubeBtn = document.getElementById('delete-cube-btn');
+  const extraItemSelect = document.getElementById('extra-item-select');
+  const addExtraItemBtn = document.getElementById('add-extra-item-btn');
+  const extraItemsList = document.getElementById('extra-items-list');
+  const itemDatabaseOverlay = document.getElementById('item-database-overlay');
+  const itemDatabaseBody = itemDatabaseOverlay.querySelector('tbody');
+  const newItemNameInput = document.getElementById('new-item-name');
+  const newItemArtNrInput = document.getElementById('new-item-artnr');
+  const newItemPriceInput = document.getElementById('new-item-price');
+  const newItemWeightInput = document.getElementById('new-item-weight');
+  const addItemButton = document.getElementById('add-item-btn');
+  const closeItemDbBtn = document.getElementById('close-item-db-btn');
+  const metalItemSelect = document.getElementById('metal-item-select');
+  const woodItemSelect = document.getElementById('wood-item-select');
+  const connectorItemSelect = document.getElementById('connector-item-select');
+  const updateCategoryBtn = document.getElementById('update-category-btn');
+  const itemDbSearch = document.getElementById('item-db-search');
+
+  // Tooltip
+  const cubeTooltip = document.getElementById('cube-tooltip');
+
+  const CELL_SIZE = 50;
+
+  /* ---------------------------
+     NEU: Zoom-Funktionen
+     --------------------------- */
+  let currentZoom = 1.0;
+  const zoomInBtn = document.getElementById('zoom-in-btn');
+  const zoomOutBtn = document.getElementById('zoom-out-btn');
+
+  // Anwenden der transform: scale() auf #raster
+  function applyZoom() {
+    // Obergrenze oder Untergrenze festlegen, z. B. min 0.3, max 2.0
+    currentZoom = Math.max(0.3, Math.min(currentZoom, 2.0));
+    raster.style.transform = `scale(${currentZoom})`;
+    raster.style.transformOrigin = 'top left';
+  }
+
+  function zoomIn() {
+    currentZoom += 0.1;
+    applyZoom();
+  }
+
+  function zoomOut() {
+    currentZoom -= 0.1;
+    applyZoom();
+  }
+
+  zoomInBtn.addEventListener('click', zoomIn);
+  zoomOutBtn.addEventListener('click', zoomOut);
+
+  /* ---------------------------
+     Artikeldatenbank
+     --------------------------- */
+  let itemDatabase = {
+    "Metall 1/3": { articleNumber: "MET-001", price: 10, weight: 2 },
+    "Metall 2/3": { articleNumber: "MET-002", price: 10, weight: 2 },
+    "Metall 3/3": { articleNumber: "MET-003", price: 10, weight: 2 },
+
+    "Holz 1/3": { articleNumber: "HOL-001", price: 5, weight: 1 },
+    "Holz 2/3": { articleNumber: "HOL-002", price: 8, weight: 1.5 },
+    "Holz 3/3": { articleNumber: "HOL-003", price: 10, weight: 2 },
+
+    "Verbindungselement": { articleNumber: "VER-001", price: 2, weight: 0.5 },
+    "Blumenkübel 1m": { articleNumber: "BK_1m", price: 0, weight: 0 },
+    "Blumenkübel 0,6m": { articleNumber: "BK_2", price: 0, weight: 0 },
+    "Blumenkübel 0,3m": { articleNumber: "BK_3", price: 0, weight: 0 },
+    "Deckel universal": { articleNumber: "DEK-UNI", price: 5, weight: 1 },
+    "Rahmen 3/3": { articleNumber: "RAH-003", price: 20, weight: 5 },
+    "Rahmen 2/3": { articleNumber: "RAH-002", price: 15, weight: 4 },
+    "Rahmen 1/3": { articleNumber: "RAH-001", price: 10, weight: 3 },
+    "Adapter Stahl 1/3": { articleNumber: "AS-001", price: 10, weight: 2 },
+    "Adapter Stahl 2/3": { articleNumber: "AS-002", price: 15, weight: 3 },
+    "Adapter Holz 1/3": { articleNumber: "AH-001", price: 12, weight: 2 },
+    "Adapter Holz 2/3": { articleNumber: "AH-002", price: 18, weight: 3 },
+    "Adapter Holz 3/3": { articleNumber: "AH-003", price: 24, weight: 4 }
+  };
+
+  let selectedMetallItemKey = "Metall 1/3";
+  let selectedHolzItemKey = "Holz 1/3";
+  let selectedVerbindungsItemKey = "Verbindungselement";
+
+  /* ------------------------------------------------------------
+     Tooltip- und Seitenberechnung (komplexe Logik, unverändert)
+     ------------------------------------------------------------ */
+  function calculateSideElements(direction, currentCubeFrac, neighborFrac, isMetalSide) {
+    let neededElements = [];
+    let connectionElements = 0;
+
+    if(isMetalSide) {
+      if(neighborFrac === null) {
+        const diff = currentCubeFrac;
+        if(diff>0) {
+          neededElements.push({material:`Metall ${diff}/3`});
+        }
+        return { neededElements, connectionElements };
+      } else {
+        const diff = currentCubeFrac - neighborFrac;
+        if(diff>0) {
+          neededElements.push({material:`Metall ${diff}/3`});
+          return { neededElements, adapterNeededForNeighbor:true, adapterSize:`Adapter Stahl ${neighborFrac}/3`, difference: diff };
+        } else if(diff<0) {
+          neededElements.push({material:`Adapter Stahl ${currentCubeFrac}/3`});
+          return { neededElements, adapterNeededForNeighbor:true, adapterSize:`Metall ${Math.abs(diff)}/3`, difference: diff };
+        } else {
+          return { neededElements, connectionElements, manualSelectionNeeded:true };
+        }
+      }
+    } else {
+      // Holzseite
+      if(neighborFrac === null) {
+        const diff = currentCubeFrac;
+        if(diff>0) {
+          neededElements.push({material:`Holz ${diff}/3`});
+        }
+        return { neededElements, connectionElements };
+      } else {
+        const diff = currentCubeFrac - neighborFrac;
+        if(diff>0) {
+          neededElements.push({material:`Holz ${diff}/3`});
+          return { neededElements, adapterNeededForNeighbor:true, adapterSize:`Adapter Holz ${neighborFrac}/3`, difference: diff };
+        } else if(diff<0) {
+          neededElements.push({material:`Adapter Holz ${currentCubeFrac}/3`});
+          return { neededElements, adapterNeededForNeighbor:true, adapterSize:`Holz ${Math.abs(diff)}/3`, difference: diff };
+        } else {
+          return { neededElements, connectionElements, manualSelectionNeeded:true };
+        }
+      }
+    }
+  }
+
+  function getSideArticles(cube, direction, cFrac, neighborFrac, isMetalSide) {
+    const sideObj = calculateSideElements(direction, cFrac, neighborFrac, isMetalSide);
+
+    // override?
+    const overrideKey = cube.sideOverrides[direction];
+    if (overrideKey) {
+      // override hat Vorrang
+      return [{ key: overrideKey, count: 1 }];
+    }
+
+    if (sideObj.manualSelectionNeeded) {
+      return [];
+    }
+
+    // ggf. normale Holzelemente entfernen, wenn Adapter:
+    if (sideObj.adapterNeededForNeighbor && sideObj.neededElements.length > 0) {
+      sideObj.neededElements = sideObj.neededElements.filter(el => {
+        return !el.material.startsWith('Holz ');
+      });
+    }
+
+    let result = [];
+    sideObj.neededElements.forEach(el => {
+      result.push({ key: el.material, count: 1 });
+    });
+    if(sideObj.connectionElements>0) {
+      result.push({ key: selectedVerbindungsItemKey, count: sideObj.connectionElements });
+    }
+    if(sideObj.adapterNeededForNeighbor && sideObj.adapterSize) {
+      result.push({ key: sideObj.adapterSize, count: 1 });
+    }
+    return result;
+  }
+
+  function getArticlesForCubeSides(cube) {
+    const result = {N:[],S:[],W:[],O:[]};
+    const cFrac = heightToFraction(cube.height);
+
+    const north = findCubeAt(cube.col, cube.row - 1);
+    const south = findCubeAt(cube.col, cube.row + 1);
+    const west  = findCubeAt(cube.col - 1, cube.row);
+    const east  = findCubeAt(cube.col + 1, cube.row);
+
+    const nFrac = north ? heightToFraction(north.height) : null;
+    const sFrac = south ? heightToFraction(south.height) : null;
+    const wFrac = west  ? heightToFraction(west.height)  : null;
+    const eFrac = east  ? heightToFraction(east.height)  : null;
+
+    result.N = getSideArticles(cube,'N', cFrac, nFrac, true);
+    result.S = getSideArticles(cube,'S', cFrac, sFrac, true);
+    result.W = getSideArticles(cube,'W', cFrac, wFrac, false);
+    result.O = getSideArticles(cube,'O', cFrac, eFrac, false);
+
+    return result;
+  }
+
+  function getArticlesForCubeBody(cube) {
+    let bodyArticles = [];
+    if(cube.hasPlanter) {
+      const pk = getPlanterItemKeyForHeight(cube.height);
+      if(pk) bodyArticles.push({ key: pk, count: 1 });
+    } else {
+      const dk = getDeckelItemKey();
+      if(dk) bodyArticles.push({ key: dk, count: 1 });
+    }
+    const rk = getRahmenItemKeyForHeight(cube.height);
+    if(rk) {
+      // 2x Rahmen
+      bodyArticles.push({ key: rk, count: 2 });
+    }
+    if(!cube.extraItems) cube.extraItems=[];
+    cube.extraItems.forEach(ei=>{
+      bodyArticles.push({ key: ei.key, count: ei.count });
+    });
+    return bodyArticles;
+  }
+
+  function normalizeHolzAdapterItemArray(articleArray) {
+    const map = {};
+    articleArray.forEach(item => {
+      map[item.key] = (map[item.key]||0) + item.count;
+    });
+    let result = {};
+    for(let k in map) {
+      if(k === "Holz 1/3") {
+        result[k] = (result[k]||0) + map[k] * 1; 
+      } else if(k === "Holz 2/3") {
+        result[k] = (result[k]||0) + map[k] * 2;
+      } else if(k === "Holz 3/3") {
+        result[k] = (result[k]||0) + map[k] * 3;
+      } else {
+        result[k] = (result[k]||0) + map[k];
+      }
+    }
+    return result;
+  }
+
+  function getFormattedCubeTooltip(cube) {
+    const sideArticles = getArticlesForCubeSides(cube);
+    const bodyArts = getArticlesForCubeBody(cube);
+
+    let html = '<table style="border-collapse:collapse; width:100%;">';
+    html += '<tr><th colspan="2" style="border:1px solid #ccc; padding:4px; background:#ddd;">Seiten (N, S, W, O)</th></tr>';
+
+    for (let direction of ['N','S','W','O']) {
+      const arr = sideArticles[direction];
+      if(arr.length === 0) {
+        html += `<tr><td style="border:1px solid #ccc; padding:3px;"><b>${direction}</b></td><td style="border:1px solid #ccc; padding:3px;">-</td></tr>`;
+      } else {
+        const norm = normalizeHolzAdapterItemArray(arr);
+        let s = "";
+        for(let k in norm) {
+          const item = itemDatabase[k];
+          const cnt = norm[k];
+          if(item) {
+            s += `${cnt}x ${k} (${item.articleNumber})<br/>`;
+          } else {
+            s += `${cnt}x ${k}<br/>`;
+          }
+        }
+        html += `<tr>
+          <td style="border:1px solid #ccc; padding:3px;"><b>${direction}</b></td>
+          <td style="border:1px solid #ccc; padding:3px;">${s}</td>
+        </tr>`;
+      }
+    }
+    html += '</table>';
+
+    const bodyNorm = normalizeHolzAdapterItemArray(bodyArts);
+    if(Object.keys(bodyNorm).length>0) {
+      html += '<hr style="margin:8px 0;"/>';
+      html += '<table style="border-collapse:collapse; width:100%;">';
+      html += '<tr><th colspan="2" style="border:1px solid #ccc; padding:4px; background:#ddd;">Körper-Artikel</th></tr>';
+      for(let k in bodyNorm) {
+        const count = bodyNorm[k];
+        const item = itemDatabase[k];
+        let txt = `${count}x ${k}`;
+        if(item) {
+          txt += ` (${item.articleNumber})`;
+        }
+        html += `<tr><td style="border:1px solid #ccc; padding:3px;" colspan="2">${txt}</td></tr>`;
+      }
+      html += '</table>';
+    }
+
+    return html;
+  }
+
+  function showCubeTooltip(cube, pageX, pageY) {
+    cubeTooltip.innerHTML = getFormattedCubeTooltip(cube);
+    cubeTooltip.style.left = (pageX + 10) + 'px';
+    cubeTooltip.style.top = (pageY + 10) + 'px';
+    cubeTooltip.style.display = 'block';
+  }
+  function hideCubeTooltip() {
+    cubeTooltip.style.display = 'none';
+  }
+
+  /* ---------------------------
+     Utils & Hilfsfunktionen
+     --------------------------- */
+  function heightToFraction(h) {
+    if (h === 1) return 3; 
+    if (h === 0.6) return 2;
+    if (h === 0.3) return 1; 
+    return 0;
+  }
+
+  function getPlanterItemKeyForHeight(h) {
+    if(h===1) return "Blumenkübel 1m";
+    if(h===0.6) return "Blumenkübel 0,6m";
+    if(h===0.3) return "Blumenkübel 0,3m";
+    return null;
+  }
+
+  function getDeckelItemKey() {
+    return "Deckel universal";
+  }
+
+  function getRahmenItemKeyForHeight(h) {
+    if(h===1) return "Rahmen 3/3";
+    if(h===0.6) return "Rahmen 2/3";
+    if(h===0.3) return "Rahmen 1/3";
+    return null;
+  }
+
+  function findCubeAt(col, row) {
+    return cubes.find(c => c.col === col && c.row === row);
+  }
+
+  /* -------------------------------------------
+     Config Overlay: Anzeigen, Speichern, etc.
+     ------------------------------------------- */
+  function showConfigOverlayAtPosition(x, y) {
+    const offsetX = 20;
+    const offsetY = 20;
+    configOverlay.style.left = x + offsetX + 'px';
+    configOverlay.style.top = y + offsetY + 'px';
+    configOverlay.style.display = 'block';
+  }
+  function hideConfigOverlay() {
+    configOverlay.style.display = 'none';
+  }
+
+  /* ---------------------------
+     Artikeldatenbank-Overlay
+     --------------------------- */
+  function showItemDatabaseOverlay() {
+    itemDatabaseOverlay.style.display = 'block';
+    updateItemDatabaseTable();
+    updateItemSelects();
+  }
+  function hideItemDatabaseOverlay() {
+    itemDatabaseOverlay.style.display = 'none';
+  }
+
+  let itemDbFilterValue = '';
+  itemDbSearch.addEventListener('input', ()=>{
+    itemDbFilterValue = itemDbSearch.value.toLowerCase().trim();
+    updateItemDatabaseTable();
+  });
+
+  function updateItemDatabaseTable() {
+    itemDatabaseBody.innerHTML = '';
+    for (let key in itemDatabase) {
+      const item = itemDatabase[key];
+      if(itemDbFilterValue && !item.articleNumber.toLowerCase().includes(itemDbFilterValue)) {
+        continue;
+      }
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${key}</td>
+        <td><input data-key="${key}" class="item-artnr-input" type="text" value="${item.articleNumber}"/></td>
+        <td><input data-key="${key}" class="item-price-input" type="number" value="${item.price}" step="0.01"/></td>
+        <td><input data-key="${key}" class="item-weight-input" type="number" value="${item.weight}" step="0.01"/></td>
+        <td><button class="delete-item-btn" data-key="${key}">X</button></td>
+      `;
+      itemDatabaseBody.appendChild(tr);
+    }
+  }
+
+  function updateItemSelects() {
+    [metalItemSelect, woodItemSelect, connectorItemSelect, extraItemSelect].forEach(sel => {
+      sel.innerHTML = '';
+    });
+
+    for (let key in itemDatabase) {
+      const optAll = document.createElement('option');
+      optAll.value = key;
+      optAll.textContent = `${key} (${itemDatabase[key].articleNumber})`;
+      metalItemSelect.appendChild(optAll.cloneNode(true));
+      woodItemSelect.appendChild(optAll.cloneNode(true));
+      connectorItemSelect.appendChild(optAll.cloneNode(true));
+      extraItemSelect.appendChild(optAll.cloneNode(true));
+    }
+
+    metalItemSelect.value = selectedMetallItemKey;
+    woodItemSelect.value = selectedHolzItemKey;
+    connectorItemSelect.value = selectedVerbindungsItemKey;
+  }
+
+  document.addEventListener('click', (e)=>{
+    if(e.target.classList.contains('delete-item-btn')){
+      const key = e.target.dataset.key;
+      if(confirm(`Artikel "${key}" wirklich löschen?`)){
+        delete itemDatabase[key];
+        cubes.forEach(c=>{
+          if(c.extraItems){
+            c.extraItems = c.extraItems.filter(i=>i.key!==key);
+          }
+          if(c.sideOverrides) {
+            for (let s of ['N','S','W','O']) {
+              if(c.sideOverrides[s]===key) c.sideOverrides[s]=null;
+            }
+          }
+        });
+        updateItemDatabaseTable();
+        updateItemSelects();
+        updateDetailTable();
+        updateSumTable();
+      }
+    }
+
+    if(e.target.classList.contains('increment-extra-item-btn') || e.target.classList.contains('decrement-extra-item-btn')) {
+      const itemKey = e.target.dataset.key;
+      selectedCubes.forEach(sel=>{
+        const c = cubes[sel.index];
+        let ei = c.extraItems.find(i=>i.key===itemKey);
+        if(!ei) return; 
+        if(e.target.classList.contains('increment-extra-item-btn')){
+          ei.count++;
+        } else {
+          ei.count--;
+          if(ei.count<=0) {
+            c.extraItems = c.extraItems.filter(x=>x.key!==itemKey);
+          }
+        }
+      });
+      updateExtraItemsList();
+      updateDetailTable();
+      updateSumTable();
+    }
+  });
+
+  document.addEventListener('input', (e) => {
+    if (e.target.classList.contains('item-price-input')) {
+      const key = e.target.dataset.key;
+      itemDatabase[key].price = parseFloat(e.target.value);
+      updateSumTable();
+    } else if (e.target.classList.contains('item-weight-input')) {
+      const key = e.target.dataset.key;
+      itemDatabase[key].weight = parseFloat(e.target.value);
+      updateSumTable();
+    } else if (e.target.classList.contains('item-artnr-input')) {
+      const key = e.target.dataset.key;
+      itemDatabase[key].articleNumber = e.target.value.trim();
+      updateItemSelects();
+      updateSumTable();
+    }
+  });
+
+  addItemButton.addEventListener('click', () => {
+    const name = newItemNameInput.value.trim();
+    const artNr = newItemArtNrInput.value.trim();
+    const price = parseFloat(newItemPriceInput.value);
+    const weight = parseFloat(newItemWeightInput.value);
+
+    if (name && artNr && !isNaN(price) && !isNaN(weight)) {
+      itemDatabase[name] = {
+        articleNumber: artNr,
+        price: price,
+        weight: weight
+      };
+      newItemNameInput.value='';
+      newItemArtNrInput.value='';
+      newItemPriceInput.value='';
+      newItemWeightInput.value='';
+      updateItemDatabaseTable();
+      updateItemSelects();
+      updateSumTable();
+    }
+  });
+
+  closeItemDbBtn.addEventListener('click', hideItemDatabaseOverlay);
+
+  const openItemDbBtn = document.createElement('button');
+  openItemDbBtn.textContent = "Datenbank öffnen";
+  document.getElementById('toolbar').appendChild(openItemDbBtn);
+  openItemDbBtn.addEventListener('click', showItemDatabaseOverlay);
+
+  updateCategoryBtn.addEventListener('click', () => {
+    selectedMetallItemKey = metalItemSelect.value;
+    selectedHolzItemKey = woodItemSelect.value;
+    selectedVerbindungsItemKey = connectorItemSelect.value;
+    updateDetailTable();
+    updateSumTable();
+  });
+
+  /* ---------------------------
+     Raster Click: Würfel setzen
+     --------------------------- */
+  raster.addEventListener('click', (e) => {
+    const rect = raster.getBoundingClientRect();
+    // Bei transform: scale(...) müssen wir die Klickposition auf die "unskalierte" umrechnen
+    const scaleFactor = currentZoom; 
+    const clickX = (e.clientX - rect.left) / scaleFactor;
+    const clickY = (e.clientY - rect.top) / scaleFactor;
+
+    lastClickX = e.clientX;
+    lastClickY = e.clientY;
+
+    const col = Math.floor(clickX / CELL_SIZE);
+    const row = Math.floor(clickY / CELL_SIZE);
+
+    const shiftPressed = e.shiftKey;
+    const existingIndex = cubes.findIndex(c => c.col === col && c.row === row);
+
+    if (shiftPressed) {
+      const selIndex = selectedCubes.findIndex(ci => ci.col === col && ci.row === row);
+      if (selIndex > -1) {
+        selectedCubes.splice(selIndex, 1);
+      } else {
+        if (existingIndex > -1) {
+          selectedCubes.push({col, row, index: existingIndex});
+        }
+      }
+    } else {
+      selectedCubes = [];
+      if (existingIndex > -1) {
+        selectedCubes.push({col, row, index: existingIndex});
+      } else {
+        cubes.push({
+          id: cubeIdCounter++, 
+          col: col, 
+          row: row, 
+          height:1, 
+          hasPlanter:false, 
+          extraItems:[], 
+          sideOverrides:{N:null,S:null,W:null,O:null}
+        });
+        const newIndex = cubes.length - 1;
+        selectedCubes.push({col, row, index: newIndex});
+      }
+    }
+
+    if (selectedCubes.length === 1) {
+      const cube = cubes[selectedCubes[0].index];
+      currentCubeIndex = selectedCubes[0].index;
+      heightSelect.value = String(cube.height);
+      planterCheckbox.checked = cube.hasPlanter || false;
+      overlayInfo.textContent = `Würfel #${cube.id} bei (${cube.col}, ${cube.row})`;
+    } else if (selectedCubes.length > 1) {
+      overlayInfo.textContent = `${selectedCubes.length} Würfel ausgewählt (Änderungen werden auf alle angewendet)`;
+      const firstCube = cubes[selectedCubes[0].index];
+      heightSelect.value = String(firstCube.height);
+      planterCheckbox.checked = firstCube.hasPlanter || false;
+      currentCubeIndex = null;
+    } else {
+      overlayInfo.textContent = '';
+      currentCubeIndex = null;
+    }
+
+    if (selectedCubes.length > 0) {
+      updateExtraItemsList();
+      showConfigOverlayAtPosition(lastClickX, lastClickY);
+    } else {
+      hideConfigOverlay();
+    }
+  });
+
+  closeOverlay.addEventListener('click', hideConfigOverlay);
+
+  saveCubeBtn.addEventListener('click', () => {
+    const h = parseFloat(heightSelect.value);
+    const p = planterCheckbox.checked;
+    if (selectedCubes.length > 0) {
+      selectedCubes.forEach(sel => {
+        cubes[sel.index].height = h;
+        cubes[sel.index].hasPlanter = p;
+      });
+    }
+    hideConfigOverlay();
+    drawCubes();
+    updateDetailTable();
+    updateSumTable();
+  });
+
+  deleteCubeBtn.addEventListener('click', () => {
+    selectedCubes.sort((a,b)=>b.index-a.index).forEach(sel => {
+      cubes.splice(sel.index, 1);
+    });
+    selectedCubes = [];
+    hideConfigOverlay();
+    drawCubes();
+    updateDetailTable();
+    updateSumTable();
+  });
+
+  resetBtn.addEventListener('click', () => {
+    cubes = [];
+    selectedCubes = [];
+    cubeIdCounter = 1;
+    drawCubes();
+    updateDetailTable();
+    updateSumTable();
+  });
+
+  addExtraItemBtn.addEventListener('click', ()=>{
+    const itemKey = extraItemSelect.value;
+    if(!itemKey) return;
+    selectedCubes.forEach(sel=>{
+      const c = cubes[sel.index];
+      if(!c.extraItems) c.extraItems = [];
+      let found = c.extraItems.find(x=>x.key===itemKey);
+      if(found) {
+        found.count++;
+      } else {
+        c.extraItems.push({key:itemKey,count:1});
+      }
+    });
+    updateExtraItemsList();
+    updateDetailTable();
+    updateSumTable();
+  });
+
+  loadConfigBtn.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (data.itemDatabase && typeof data.itemDatabase === 'object') {
+            itemDatabase = data.itemDatabase;
+            updateItemDatabaseTable();
+            updateItemSelects();
+            updateDetailTable();
+            updateSumTable();
+            alert("Config wurde geladen.");
+          } else {
+            alert("Die gewählte Datei enthält keine gültige itemDatabase.");
+          }
+        } catch (err) {
+          console.error("Ungültige JSON Config", err);
+          alert("Ungültige Konfigurationsdatei!");
+        }
+      };
+      reader.readAsText(file);
+    });
+    input.click();
+  });
+
+  exportConfigBtn.addEventListener('click', () => {
+    const configData = { itemDatabase: itemDatabase };
+    const dataStr = JSON.stringify(configData, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'config.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  function updateExtraItemsList() {
+    extraItemsList.innerHTML = '';
+    if(selectedCubes.length===0) return;
+    const firstCube = cubes[selectedCubes[0].index];
+    if(!firstCube.extraItems) firstCube.extraItems = [];
+
+    firstCube.extraItems.forEach(ei=>{
+      const div = document.createElement('div');
+      const item = itemDatabase[ei.key];
+      const artNr = item ? item.articleNumber : '???';
+      div.textContent = `${ei.count}x ${ei.key} (ArtNr: ${artNr})`;
+      const plusBtn = document.createElement('button');
+      plusBtn.textContent = '+';
+      plusBtn.className = 'increment-extra-item-btn';
+      plusBtn.dataset.key = ei.key;
+      div.appendChild(plusBtn);
+
+      const minusBtn = document.createElement('button');
+      minusBtn.textContent = '–';
+      minusBtn.className = 'decrement-extra-item-btn';
+      minusBtn.dataset.key = ei.key;
+      div.appendChild(minusBtn);
+
+      extraItemsList.appendChild(div);
+    });
+  }
+
+  exportPdfBtn.addEventListener('click', () => {
+    exportToPDF();
+  });
+
+  exportXlsxBtn.addEventListener('click', () => {
+    exportToXLSX();
+  });
+
+  saveJsonBtn.addEventListener('click', () => {
+    saveJSON();
+  });
+
+  loadJsonBtn.addEventListener('click', () => {
+    loadJSON();
+  });
+
+  filterSelect.addEventListener('change', () => {
+    updateDetailTable();
+  });
+
+  /* ---------------------------
+     Zeichnen der Würfel
+     --------------------------- */
+  function drawCubes() {
+    const oldMarkers = raster.querySelectorAll('.cube-marker');
+    oldMarkers.forEach(m => m.remove());
+
+    cubes.forEach((c, idx) => {
+      const marker = document.createElement('div');
+      marker.className = 'cube-marker';
+      marker.style.left = (c.col * CELL_SIZE) + 'px';
+      marker.style.top = (c.row * CELL_SIZE) + 'px';
+      marker.innerHTML = `#${c.id}<br>${c.height}m${(c.hasPlanter ? ' (B)' : '')}`;
+      marker.dataset.cubeId = c.id;
+
+      // Markierung rot umrahmen, wenn ausgewählt
+      if (selectedCubes.find(sc => sc.index === idx)) {
+        marker.style.border = '2px solid red';
+      } else {
+        marker.style.border = '1px solid #333';
+      }
+
+      // Tooltip-Events
+      marker.addEventListener('mouseenter', (e)=>{
+        e.preventDefault();
+        showCubeTooltip(c, e.pageX, e.pageY);
+      });
+      marker.addEventListener('mousemove', (e)=>{
+        e.preventDefault();
+        showCubeTooltip(c, e.pageX, e.pageY);
+      });
+      marker.addEventListener('mouseleave', (e)=>{
+        hideCubeTooltip();
+      });
+
+      raster.appendChild(marker);
+    });
+  }
+
+  /* ---------------------------
+     Detail- und Summen-Tabelle
+     --------------------------- */
+  function updateDetailTable() {
+    detailTableBody.innerHTML = '';
+    const filterVal = filterSelect.value;
+
+    cubes.forEach((c) => {
+      if(!c.extraItems) c.extraItems = [];
+      if(!c.sideOverrides) c.sideOverrides = {N:null,S:null,W:null,O:null};
+
+      if (filterVal === 'with' && !c.hasPlanter) return;
+      if (filterVal === 'without' && c.hasPlanter) return;
+
+      const north = findCubeAt(c.col, c.row - 1);
+      const south = findCubeAt(c.col, c.row + 1);
+      const west = findCubeAt(c.col - 1, c.row);
+      const east = findCubeAt(c.col + 1, c.row);
+
+      const cFrac = heightToFraction(c.height);
+      const nFrac = north ? heightToFraction(north.height) : null;
+      const sFrac = south ? heightToFraction(south.height) : null;
+      const wFrac = west ? heightToFraction(west.height) : null;
+      const eFrac = east ? heightToFraction(east.height) : null;
+
+      const N = calculateSideElements('N', cFrac, nFrac, true);
+      const S = calculateSideElements('S', cFrac, sFrac, true);
+      const W_ = calculateSideElements('W', cFrac, wFrac, false);
+      const O_ = calculateSideElements('O', cFrac, eFrac, false);
+
+      function getFrameItemsForCube(c) {
+        const rKey = getRahmenItemKeyForHeight(c.height);
+        return [{key:rKey,count:2}]; // 2x Rahmen pro Würfel
+      }
+
+      function extraItemsToText(c) {
+        const frames = getFrameItemsForCube(c);
+        const allItems = {};
+        frames.forEach(fr=>{
+          allItems[fr.key] = (allItems[fr.key]||0) + fr.count;
+        });
+        c.extraItems.forEach(ei=>{
+          allItems[ei.key] = (allItems[ei.key]||0) + ei.count;
+        });
+        const parts = [];
+        for(let k in allItems) {
+          const item = itemDatabase[k];
+          if(!item) continue;
+          const count = allItems[k];
+          if(count>1) {
+            parts.push(`${count}x ${k} (ArtNr: ${item.articleNumber})`);
+          } else {
+            parts.push(`${k} (ArtNr: ${item.articleNumber})`);
+          }
+        }
+        if(parts.length===0) return '-';
+        return parts.join(', ');
+      }
+
+      function planterToText() {
+        if(c.hasPlanter) {
+          const pk = getPlanterItemKeyForHeight(c.height);
+          const item = itemDatabase[pk];
+          if(item){
+            return `${pk} (ArtNr: ${item.articleNumber})`;
+          } else {
+            return '-';
+          }
+        } else {
+          const dk = getDeckelItemKey();
+          const dItem = itemDatabase[dk];
+          if(dItem){
+            return `${dk} (ArtNr: ${dItem.articleNumber})`;
+          } else {
+            return '-';
+          }
+        }
+      }
+
+      function sideToText(sideObj, direction) {
+        if(sideObj.manualSelectionNeeded) {
+          let metalOptions = '';
+          const isNorthSouth = (direction==='N'||direction==='S');
+          for (let key in itemDatabase) {
+            const keyLower = key.toLowerCase();
+            if(isNorthSouth) {
+              if(keyLower.includes('metall') || keyLower.includes('adapter stahl')) {
+                const selected = (c.sideOverrides[direction] === key) ? 'selected' : '';
+                metalOptions += `<option value="${key}" ${selected}>${key} (${itemDatabase[key].articleNumber})</option>`;
+              }
+            } else {
+              if(keyLower.includes('holz') || keyLower.includes('adapter holz')) {
+                const selected = (c.sideOverrides[direction] === key) ? 'selected' : '';
+                metalOptions += `<option value="${key}" ${selected}>${key} (${itemDatabase[key].articleNumber})</option>`;
+              }
+            }
+          }
+          return `<select class="manual-side-select" data-cube-id="${c.id}" data-side="${direction}">
+                    <option value="">(kein Artikel)</option>
+                    ${metalOptions}
+                  </select>`;
+        }
+
+        if(sideObj.neededElements.length === 0 && !sideObj.connectionElements && !sideObj.adapterNeededForNeighbor) {
+          return '-';
+        }
+
+        let parts = [];
+        sideObj.neededElements.forEach(el=>{
+          const item = itemDatabase[el.material];
+          if(item) {
+            parts.push(`${el.material} (ArtNr: ${item.articleNumber})`);
+          } else {
+            parts.push(`${el.material}`);
+          }
+        });
+
+        if(sideObj.connectionElements>0) {
+          const connItem = itemDatabase[selectedVerbindungsItemKey];
+          if(connItem) {
+            parts.push(`${sideObj.connectionElements}x ${selectedVerbindungsItemKey} (ArtNr: ${connItem.articleNumber})`);
+          }
+        }
+
+        if(sideObj.adapterNeededForNeighbor) {
+          parts.push(`(Benötigt Anpassung beim Nachbar: ${sideObj.adapterSize})`);
+        }
+
+        if(parts.length===0) return '-';
+        return parts.join(', ');
+      }
+
+      let extraOptions = '';
+      for (let key in itemDatabase) {
+        const item = itemDatabase[key];
+        extraOptions += `<option value="${key}">${key} (ArtNr: ${item.articleNumber})</option>`;
+      }
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${c.id}</td>
+        <td>${c.col}</td>
+        <td>${c.row}</td>
+        <td>${c.height}m</td>
+        <td>${planterToText()}</td>
+        <td>${sideToText(N,'N')}</td>
+        <td>${sideToText(S,'S')}</td>
+        <td>${sideToText(W_,'W')}</td>
+        <td>${sideToText(O_,'O')}</td>
+        <td>${extraItemsToText(c)}</td>
+        <td>
+          <select class="extra-item-select-inline">
+            ${extraOptions}
+          </select>
+          <button class="add-extra-item-inline-btn" data-cube-id="${c.id}">+</button>
+        </td>
+        <td>
+          <button class="delete-cube-btn-inline" data-cube-id="${c.id}" style="background:red; color:white;">Löschen</button>
+        </td>
+      `;
+      detailTableBody.appendChild(tr);
+    });
+
+    updateSumTable();
+  }
+
+  detailTableBody.addEventListener('click', (e) => {
+    const td = e.target.closest('td');
+    if (!td) return;
+  
+    const tr = td.parentElement;
+    const cubeId = parseInt(tr.children[0].textContent);
+    const cubeIndex = cubes.findIndex(c => c.id === cubeId);
+    if (cubeIndex === -1) return;
+    const cube = cubes[cubeIndex];
+
+    const addExtraBtn = e.target.closest('.add-extra-item-inline-btn');
+    if (addExtraBtn) {
+      const cId = parseInt(addExtraBtn.dataset.cubeId);
+      const cIndex = cubes.findIndex(c=>c.id===cId);
+      if (cIndex > -1) {
+        const row = addExtraBtn.closest('tr');
+        const select = row.querySelector('.extra-item-select-inline');
+        const itemKey = select.value;
+        if (itemKey && itemDatabase[itemKey]) {
+          const c = cubes[cIndex];
+          let found = c.extraItems.find(x=>x.key===itemKey);
+          if(found) {
+            found.count++;
+          } else {
+            c.extraItems.push({key:itemKey,count:1});
+          }
+          updateDetailTable();
+          updateSumTable();
+          drawCubes();
+        }
+      }
+    }
+
+    const deleteBtn = e.target.closest('.delete-cube-btn-inline');
+    if (deleteBtn) {
+      const cId = parseInt(deleteBtn.dataset.cubeId);
+      const cIndex = cubes.findIndex(c=>c.id===cId);
+      if (cIndex > -1 && confirm("Würfel wirklich löschen?")) {
+        cubes.splice(cIndex,1);
+        updateDetailTable();
+        updateSumTable();
+        drawCubes();
+      }
+    }
+  });
+
+  detailTableBody.addEventListener('change', (e)=>{
+    if(e.target.classList.contains('manual-side-select')) {
+      const cubeId = parseInt(e.target.dataset.cubeId);
+      const side = e.target.dataset.side;
+      const cubeIndex = cubes.findIndex(c=>c.id===cubeId);
+      if(cubeIndex>-1) {
+        const selectedVal = e.target.value;
+        cubes[cubeIndex].sideOverrides[side] = selectedVal ? selectedVal : null;
+        updateSumTable();
+      }
+    }
+  });
+
+  detailTableBody.addEventListener('click', (e)=>{
+    const td = e.target.closest('td');
+    if(!td) return;
+    const tr = td.parentElement;
+    const cubeId = parseInt(tr.children[0].textContent);
+    const cubeIndex = cubes.findIndex(c=>c.id===cubeId);
+    if (cubeIndex===-1) return;
+    const colIndex = Array.from(tr.children).indexOf(td);
+    const cube = cubes[cubeIndex];
+
+    // Inline-Änderungen für Höhe
+    if (colIndex === 3 && !td.querySelector('.inline-edit-height')) {
+      const originalValue = cube.height;
+      td.innerHTML = `<select class="inline-edit-height">
+        <option value="1" ${originalValue===1?'selected':''}>1m (3/3)</option>
+        <option value="0.6" ${originalValue===0.6?'selected':''}>0,6m (2/3)</option>
+        <option value="0.3" ${originalValue===0.3?'selected':''}>0,3m (1/3)</option>
+      </select>`;
+      const select = td.querySelector('.inline-edit-height');
+      select.focus();
+      select.addEventListener('blur', () => {
+        const newVal = parseFloat(select.value);
+        cube.height = newVal;
+        updateDetailTable();
+        updateSumTable();
+        drawCubes();
+      });
+    }
+
+    // Inline-Änderungen für Blumenkübel
+    if (colIndex === 4 && !td.querySelector('.inline-edit-planter')) {
+      const originalIsPlanter = cube.hasPlanter;
+      td.innerHTML = `<label><input type="checkbox" class="inline-edit-planter" ${originalIsPlanter?'checked':''}/> Blumenkübel?</label>`;
+      const checkbox = td.querySelector('.inline-edit-planter');
+      checkbox.focus();
+      checkbox.addEventListener('blur', () => {
+        cube.hasPlanter = checkbox.checked;
+        updateDetailTable();
+        updateSumTable();
+        drawCubes();
+      });
+    }
+  });
+
+  /* ---------------------------
+     Summenberechnung
+     --------------------------- */
+  function normalizeHolzAdapterItems(key, count) {
+    if (key === "Holz 1/3") {
+      return [{ key, count: count * 1 }];
+    }
+    if (key === "Holz 2/3") {
+      return [{ key, count: count * 2 }];
+    }
+    if (key === "Holz 3/3") {
+      return [{ key, count: count * 3 }];
+    }
+    return [{ key, count }];
+  }
+
+  function updateSumTable() {
+    sumTableBody.innerHTML = '';
+
+    const totalCounts = {};
+
+    function addCount(key, count) {
+      let normalized = normalizeHolzAdapterItems(key, count);
+      normalized.forEach(n=>{
+        if(!n.key || !itemDatabase[n.key]) return;
+        totalCounts[n.key] = (totalCounts[n.key] || 0) + n.count;
+      });
+    }
+
+    function processSideObj(sideObj) {
+      if(sideObj.manualSelectionNeeded) {
+        return;
+      }
+      if (sideObj.adapterNeededForNeighbor && sideObj.neededElements.length > 0) {
+        sideObj.neededElements = sideObj.neededElements.filter(el => {
+          return !el.material.startsWith('Holz ');
+        });
+      }
+      sideObj.neededElements.forEach(el => {
+        addCount(el.material, 1);
+      });
+
+      if(sideObj.connectionElements>0) {
+        addCount(selectedVerbindungsItemKey, sideObj.connectionElements);
+      }
+
+      if(sideObj.adapterNeededForNeighbor && sideObj.adapterSize) {
+        addCount(sideObj.adapterSize, 1);
+      }
+    }
+
+    cubes.forEach((c) => {
+      if(!c.extraItems) c.extraItems=[];
+      if(!c.sideOverrides) c.sideOverrides={N:null,S:null,W:null,O:null};
+
+      const cFrac = heightToFraction(c.height);
+      const north = findCubeAt(c.col, c.row - 1);
+      const south = findCubeAt(c.col, c.row + 1);
+      const west = findCubeAt(c.col - 1, c.row);
+      const east = findCubeAt(c.col + 1, c.row);
+
+      const nFrac = north ? heightToFraction(north.height) : null;
+      const sFrac = south ? heightToFraction(south.height) : null;
+      const wFrac = west ? heightToFraction(west.height) : null;
+      const eFrac = east ? heightToFraction(east.height) : null;
+
+      const N = calculateSideElements('N', cFrac, nFrac, true);
+      const S = calculateSideElements('S', cFrac, sFrac, true);
+      const W_ = calculateSideElements('W', cFrac, wFrac, false);
+      const O_ = calculateSideElements('O', cFrac, eFrac, false);
+
+      // Blumenkübel oder Deckel
+      if(c.hasPlanter){
+        const pk = getPlanterItemKeyForHeight(c.height);
+        addCount(pk,1);
+      } else {
+        const dk = getDeckelItemKey();
+        addCount(dk,1);
+      }
+
+      // Rahmen pro Würfel => 2x
+      const rk = getRahmenItemKeyForHeight(c.height);
+      addCount(rk, 2);
+
+      // Extra-Artikel
+      c.extraItems.forEach(ei=>{
+        addCount(ei.key, ei.count);
+      });
+
+      // Seiten-Overrides
+      for(let side of ['N','S','W','O']) {
+        const chosenItem = c.sideOverrides[side];
+        if(chosenItem && itemDatabase[chosenItem]) {
+          addCount(chosenItem, 1);
+        }
+      }
+
+      // Seiten-Objekte
+      processSideObj(N);
+      processSideObj(S);
+      processSideObj(W_);
+      processSideObj(O_);
+    });
+
+    if (Object.keys(totalCounts).length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="3">Keine Elemente erforderlich</td>`;
+      sumTableBody.appendChild(tr);
+      totalCostElem.textContent = '0';
+      totalWeightElem.textContent = '0';
+      return;
+    }
+
+    // Holz-Artikel zu "Holz 1/3" zusammenfassen
+    const cH13 = totalCounts["Holz 1/3"] || 0;
+    const cH23 = totalCounts["Holz 2/3"] || 0;
+    const cH33 = totalCounts["Holz 3/3"] || 0;
+    if((cH13 + cH23 + cH33) > 0) {
+      const itemH13 = itemDatabase["Holz 1/3"];
+      const itemH23 = itemDatabase["Holz 2/3"];
+      const itemH33 = itemDatabase["Holz 3/3"];
+      const sumHolzMenge = cH13 + cH23 + cH33;
+      const sumHolzCost = cH13*itemH13.price + cH23*itemH23.price + cH33*itemH33.price;
+      const sumHolzWeight = cH13*itemH13.weight + cH23*itemH23.weight + cH33*itemH33.weight;
+
+      delete totalCounts["Holz 1/3"];
+      delete totalCounts["Holz 2/3"];
+      delete totalCounts["Holz 3/3"];
+
+      totalCounts["Holz 1/3"] = sumHolzMenge;
+      totalCounts["_H13_COST"] = sumHolzCost;
+      totalCounts["_H13_WEIGHT"] = sumHolzWeight;
+    }
+
+    let totalCost = 0;
+    let totalWeight = 0;
+
+    for (let key in totalCounts) {
+      if(key.startsWith('_H13')) {
+        continue;
+      }
+      const count = totalCounts[key];
+      const item = itemDatabase[key];
+      if(!item) continue; 
+
+      let costThis = count * item.price;
+      let weightThis = count * item.weight;
+
+      if(key === "Holz 1/3" && totalCounts["_H13_COST"]!==undefined) {
+        costThis = totalCounts["_H13_COST"];
+        weightThis = totalCounts["_H13_WEIGHT"];
+      }
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${key}</td><td>${item.articleNumber}</td><td>${count}</td>`;
+      sumTableBody.appendChild(tr);
+
+      totalCost += costThis;
+      totalWeight += weightThis;
+    }
+
+    totalCostElem.textContent = totalCost.toFixed(2);
+    totalWeightElem.textContent = totalWeight.toFixed(2);
+  }
+
+  /* ---------------------------
+     PDF-Export mit jsPDF
+     --------------------------- */
+  async function exportToPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    const detailHeaders = [];
+    document.querySelectorAll('#detail-table thead th').forEach(th => detailHeaders.push(th.innerText.trim()));
+    const detailData = [];
+    detailTableBody.querySelectorAll('tr').forEach(tr => {
+      const rowData = [];
+      tr.querySelectorAll('td').forEach(td => rowData.push(td.innerText.trim()));
+      detailData.push(rowData);
+    });
+
+    const sumHeaders = [];
+    document.querySelectorAll('#sum-table thead th').forEach(th => sumHeaders.push(th.innerText.trim()));
+    const sumData = [];
+    sumTableBody.querySelectorAll('tr').forEach(tr => {
+      const rowData = [];
+      tr.querySelectorAll('td').forEach(td => rowData.push(td.innerText.trim()));
+      sumData.push(rowData);
+    });
+
+    doc.setFontSize(14);
+    doc.text("Detail-Tabelle", 10, 10);
+    doc.autoTable({
+      startY: 15,
+      head: [detailHeaders],
+      body: detailData,
+      theme: 'grid',
+      styles: { fontSize: 10 }
+    });
+
+    let finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(14);
+    doc.text("Summen-Tabelle", 10, finalY);
+    doc.autoTable({
+      startY: finalY + 5,
+      head: [sumHeaders],
+      body: sumData,
+      theme: 'grid',
+      styles: { fontSize: 10 }
+    });
+
+    finalY = doc.lastAutoTable.finalY + 10;
+    doc.text("Kosten & Gewicht", 10, finalY);
+    doc.setFontSize(10);
+    doc.text(`Gesamtkosten: ${totalCostElem.textContent} €`, 10, finalY+5);
+    doc.text(`Gesamtgewicht: ${totalWeightElem.textContent} kg`, 10, finalY+10);
+
+    doc.save("Konfiguration.pdf");
+  }
+
+  /* ---------------------------
+     Excel-Export mit xlsx
+     --------------------------- */
+  function exportToXLSX() {
+    const detailData = [["ID","Spalte","Zeile","Höhe","Blumenkübel/Deckel","N","S","W","O","Extra-Artikel","Extra hinzufügen","Aktionen"]];
+    detailTableBody.querySelectorAll('tr').forEach(tr => {
+      const rowData = [];
+      tr.querySelectorAll('td').forEach(td => rowData.push(td.innerText));
+      detailData.push(rowData);
+    });
+
+    const sumData = [["Element","Artikel-Nr.","Menge"]];
+    sumTableBody.querySelectorAll('tr').forEach(tr => {
+      const rowData = [];
+      tr.querySelectorAll('td').forEach(td => rowData.push(td.innerText));
+      sumData.push(rowData);
+    });
+
+    const wb = XLSX.utils.book_new();
+    const wsDetail = XLSX.utils.aoa_to_sheet(detailData);
+    const wsSum = XLSX.utils.aoa_to_sheet(sumData);
+
+    XLSX.utils.book_append_sheet(wb, wsDetail, "Details");
+    XLSX.utils.book_append_sheet(wb, wsSum, "Summen");
+
+    const costWeightData = [
+      ["Gesamtkosten", totalCostElem.textContent + " €"],
+      ["Gesamtgewicht", totalWeightElem.textContent + " kg"]
+    ];
+    const wsCostWeight = XLSX.utils.aoa_to_sheet(costWeightData);
+    XLSX.utils.book_append_sheet(wb, wsCostWeight, "Kosten_Gewicht");
+
+    XLSX.writeFile(wb, "Konfiguration.xlsx");
+  }
+
+  /* ---------------------------
+     JSON Speichern & Laden
+     --------------------------- */
+  function saveJSON() {
+    const dataStr = JSON.stringify(cubes);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'konfiguration.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function loadJSON() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (Array.isArray(data)) {
+            data.forEach(c=>{
+              if(!c.extraItems) c.extraItems=[];
+              if(!c.sideOverrides) c.sideOverrides={N:null,S:null,W:null,O:null};
+              if(c.extraItems.length>0 && typeof c.extraItems[0]==='string'){
+                // Falls alte Struktur: konvertieren
+                c.extraItems = c.extraItems.map(k=>({key:k,count:1}));
+              }
+            });
+            cubes = data;
+            let maxId = cubes.reduce((max,cc)=>cc.id>max?cc.id:max,0);
+            cubeIdCounter = maxId+1;
+            selectedCubes = [];
+            drawCubes();
+            updateDetailTable();
+            updateSumTable();
+          }
+        } catch (err) {
+          console.error("Invalid JSON", err);
+        }
+      };
+      reader.readAsText(file);
+    });
+    input.click();
+  }
+
+  /* ---------------------------
+     Drag-&-Drop von Würfeln
+     --------------------------- */
+  let isDraggingCube = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let draggedCubeIndex = null;
+  let originalCol = null;
+  let originalRow = null;
+
+  raster.addEventListener('mousedown', (e) => {
+    const cubeMarker = e.target.closest('.cube-marker');
+    if (cubeMarker) {
+      e.preventDefault();
+      const idx = cubes.findIndex(c => c.id == cubeMarker.dataset.cubeId);
+      if (idx > -1) {
+        isDraggingCube = true;
+        draggedCubeIndex = idx;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        originalCol = cubes[idx].col;
+        originalRow = cubes[idx].row;
+        cubeMarker.style.cursor = 'grabbing';
+      }
+    }
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (isDraggingCube && draggedCubeIndex !== null) {
+      e.preventDefault();
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      const cubeMarker = raster.querySelector(`.cube-marker[data-cube-id="${cubes[draggedCubeIndex].id}"]`);
+      if (cubeMarker) {
+        const origLeft = originalCol * CELL_SIZE;
+        const origTop = originalRow * CELL_SIZE;
+        cubeMarker.style.left = (origLeft + dx) + 'px';
+        cubeMarker.style.top = (origTop + dy) + 'px';
+      }
+    }
+  });
+
+  document.addEventListener('mouseup', (e) => {
+    if (isDraggingCube && draggedCubeIndex !== null) {
+      e.preventDefault();
+      const cube = cubes[draggedCubeIndex];
+      const cubeMarker = raster.querySelector(`.cube-marker[data-cube-id="${cube.id}"]`);
+      if (cubeMarker) {
+        const rect = raster.getBoundingClientRect();
+        const markerRect = cubeMarker.getBoundingClientRect();
+        // Achtung bei Zoom: Aus Mausposition die unskalierte Position berechnen
+        const scaleFactor = currentZoom;
+        const relX = (markerRect.left - rect.left) / scaleFactor;
+        const relY = (markerRect.top - rect.top) / scaleFactor;
+        const newCol = Math.round(relX / CELL_SIZE);
+        const newRow = Math.round(relY / CELL_SIZE);
+
+        const existingIndex = cubes.findIndex(c => c.col === newCol && c.row === newRow && c.id !== cube.id);
+        if (existingIndex === -1) {
+          cube.col = newCol;
+          cube.row = newRow;
+        } else {
+          // Falls Position schon belegt, zurückrollen
+          cube.col = originalCol;
+          cube.row = originalRow;
+        }
+      }
+
+      isDraggingCube = false;
+      draggedCubeIndex = null;
+      drawCubes();
+      updateDetailTable();
+      updateSumTable();
+    }
+  });
+
+  // Initialisierung
+  drawCubes();
+  updateDetailTable();
+  updateSumTable();
+</script>
+</body>
+</html>
