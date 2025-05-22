@@ -133,6 +133,13 @@
       padding:2px;
     }
 
+    .color-box {
+      width:16px;
+      height:16px;
+      border:1px solid #333;
+      display:inline-block;
+    }
+
     #item-database-overlay {
       display:none; 
       position:absolute; 
@@ -237,6 +244,7 @@
           <th>Spalte (col)</th>
           <th>Zeile (row)</th>
           <th>Höhe</th>
+          <th>Farbe</th>
           <th>Blumenkübel/Deckel</th>
           <th>N</th>
           <th>S</th>
@@ -254,6 +262,7 @@
     <table id="sum-table">
       <thead>
         <tr>
+          <th>Farbe</th>
           <th>Element</th>
           <th>Artikel-Nr.</th>
           <th>Menge</th>
@@ -286,6 +295,10 @@
   </label><br/><br/>
   <label>
     <input type="checkbox" id="planter-checkbox"/> Blumenkübel statt Deckel?
+  </label><br/><br/>
+
+  <label>Farbe:
+    <input type="color" id="color-picker" value="#8dcff0"/>
   </label><br/><br/>
 
   <h4>Extra-Artikel hinzufügen</h4>
@@ -356,6 +369,7 @@
   const configOverlay = document.getElementById('config-overlay');
   const heightSelect = document.getElementById('height-select');
   const planterCheckbox = document.getElementById('planter-checkbox');
+  const colorPicker = document.getElementById('color-picker');
   const saveCubeBtn = document.getElementById('save-cube-btn');
   const closeOverlay = document.getElementById('close-overlay');
   const resetBtn = document.getElementById('reset-btn');
@@ -892,13 +906,14 @@
         selectedCubes.push({col, row, index: existingIndex});
       } else {
         cubes.push({
-          id: cubeIdCounter++, 
-          col: col, 
-          row: row, 
-          height:1, 
-          hasPlanter:false, 
-          extraItems:[], 
-          sideOverrides:{N:null,S:null,W:null,O:null}
+          id: cubeIdCounter++,
+          col: col,
+          row: row,
+          height: 1,
+          hasPlanter: false,
+          color: '#8dcff0',
+          extraItems: [],
+          sideOverrides: { N:null, S:null, W:null, O:null }
         });
         const newIndex = cubes.length - 1;
         selectedCubes.push({col, row, index: newIndex});
@@ -910,12 +925,14 @@
       currentCubeIndex = selectedCubes[0].index;
       heightSelect.value = String(cube.height);
       planterCheckbox.checked = cube.hasPlanter || false;
+      colorPicker.value = cube.color || '#8dcff0';
       overlayInfo.textContent = `Würfel #${cube.id} bei (${cube.col}, ${cube.row})`;
     } else if (selectedCubes.length > 1) {
       overlayInfo.textContent = `${selectedCubes.length} Würfel ausgewählt (Änderungen werden auf alle angewendet)`;
       const firstCube = cubes[selectedCubes[0].index];
       heightSelect.value = String(firstCube.height);
       planterCheckbox.checked = firstCube.hasPlanter || false;
+      colorPicker.value = firstCube.color || '#8dcff0';
       currentCubeIndex = null;
     } else {
       overlayInfo.textContent = '';
@@ -935,10 +952,12 @@
   saveCubeBtn.addEventListener('click', () => {
     const h = parseFloat(heightSelect.value);
     const p = planterCheckbox.checked;
+    const colVal = colorPicker.value;
     if (selectedCubes.length > 0) {
       selectedCubes.forEach(sel => {
         cubes[sel.index].height = h;
         cubes[sel.index].hasPlanter = p;
+        cubes[sel.index].color = colVal;
       });
     }
     hideConfigOverlay();
@@ -1087,6 +1106,7 @@
       marker.className = 'cube-marker';
       marker.style.left = (c.col * CELL_SIZE) + 'px';
       marker.style.top = (c.row * CELL_SIZE) + 'px';
+      marker.style.background = c.color || '#8dcff0';
       marker.innerHTML = `#${c.id}<br>${c.height}m${(c.hasPlanter ? ' (B)' : '')}`;
       marker.dataset.cubeId = c.id;
 
@@ -1258,6 +1278,7 @@
         <td>${c.col}</td>
         <td>${c.row}</td>
         <td>${c.height}m</td>
+        <td><div class="color-box" style="background:${c.color}"></div> ${c.color}</td>
         <td>${planterToText()}</td>
         <td>${sideToText(N,'N')}</td>
         <td>${sideToText(S,'S')}</td>
@@ -1369,7 +1390,7 @@
     }
 
     // Inline-Änderungen für Blumenkübel
-    if (colIndex === 4 && !td.querySelector('.inline-edit-planter')) {
+    if (colIndex === 5 && !td.querySelector('.inline-edit-planter')) {
       const originalIsPlanter = cube.hasPlanter;
       td.innerHTML = `<label><input type="checkbox" class="inline-edit-planter" ${originalIsPlanter?'checked':''}/> Blumenkübel?</label>`;
       const checkbox = td.querySelector('.inline-edit-planter');
@@ -1404,15 +1425,16 @@
 
     const totalCounts = {};
 
-    function addCount(key, count) {
+    function addCount(key, count, color) {
       let normalized = normalizeHolzAdapterItems(key, count);
-      normalized.forEach(n=>{
+      normalized.forEach(n => {
         if(!n.key || !itemDatabase[n.key]) return;
-        totalCounts[n.key] = (totalCounts[n.key] || 0) + n.count;
+        if(!totalCounts[color]) totalCounts[color] = {};
+        totalCounts[color][n.key] = (totalCounts[color][n.key] || 0) + n.count;
       });
     }
 
-    function processSideObj(sideObj) {
+    function processSideObj(sideObj, color) {
       if(sideObj.manualSelectionNeeded) {
         return;
       }
@@ -1422,15 +1444,15 @@
         });
       }
       sideObj.neededElements.forEach(el => {
-        addCount(el.material, 1);
+        addCount(el.material, 1, color);
       });
 
       if(sideObj.connectionElements>0) {
-        addCount(selectedVerbindungsItemKey, sideObj.connectionElements);
+        addCount(selectedVerbindungsItemKey, sideObj.connectionElements, color);
       }
 
       if(sideObj.adapterNeededForNeighbor && sideObj.adapterSize) {
-        addCount(sideObj.adapterSize, 1);
+        addCount(sideObj.adapterSize, 1, color);
       }
     }
 
@@ -1454,94 +1476,97 @@
       const W_ = calculateSideElements('W', cFrac, wFrac, false);
       const O_ = calculateSideElements('O', cFrac, eFrac, false);
 
+      const color = c.color || '#8dcff0';
+
       // Blumenkübel oder Deckel
       if(c.hasPlanter){
         const pk = getPlanterItemKeyForHeight(c.height);
-        addCount(pk,1);
+        addCount(pk,1,color);
       } else {
         const dk = getDeckelItemKey();
-        addCount(dk,1);
+        addCount(dk,1,color);
       }
 
       // Rahmen pro Würfel => 2x
       const rk = getRahmenItemKeyForHeight(c.height);
-      addCount(rk, 2);
+      addCount(rk, 2, color);
 
       // Extra-Artikel
       c.extraItems.forEach(ei=>{
-        addCount(ei.key, ei.count);
+        addCount(ei.key, ei.count, color);
       });
 
       // Seiten-Overrides
       for(let side of ['N','S','W','O']) {
         const chosenItem = c.sideOverrides[side];
         if(chosenItem && itemDatabase[chosenItem]) {
-          addCount(chosenItem, 1);
+          addCount(chosenItem, 1, color);
         }
       }
 
       // Seiten-Objekte
-      processSideObj(N);
-      processSideObj(S);
-      processSideObj(W_);
-      processSideObj(O_);
+      processSideObj(N, color);
+      processSideObj(S, color);
+      processSideObj(W_, color);
+      processSideObj(O_, color);
     });
 
     if (Object.keys(totalCounts).length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td colspan="3">Keine Elemente erforderlich</td>`;
+      tr.innerHTML = `<td colspan="4">Keine Elemente erforderlich</td>`;
       sumTableBody.appendChild(tr);
       totalCostElem.textContent = '0';
       totalWeightElem.textContent = '0';
       return;
     }
 
-    // Holz-Artikel zu "Holz 1/3" zusammenfassen
-    const cH13 = totalCounts["Holz 1/3"] || 0;
-    const cH23 = totalCounts["Holz 2/3"] || 0;
-    const cH33 = totalCounts["Holz 3/3"] || 0;
-    if((cH13 + cH23 + cH33) > 0) {
-      const itemH13 = itemDatabase["Holz 1/3"];
-      const itemH23 = itemDatabase["Holz 2/3"];
-      const itemH33 = itemDatabase["Holz 3/3"];
-      const sumHolzMenge = cH13 + cH23 + cH33;
-      const sumHolzCost = cH13*itemH13.price + cH23*itemH23.price + cH33*itemH33.price;
-      const sumHolzWeight = cH13*itemH13.weight + cH23*itemH23.weight + cH33*itemH33.weight;
-
-      delete totalCounts["Holz 1/3"];
-      delete totalCounts["Holz 2/3"];
-      delete totalCounts["Holz 3/3"];
-
-      totalCounts["Holz 1/3"] = sumHolzMenge;
-      totalCounts["_H13_COST"] = sumHolzCost;
-      totalCounts["_H13_WEIGHT"] = sumHolzWeight;
-    }
-
     let totalCost = 0;
     let totalWeight = 0;
 
-    for (let key in totalCounts) {
-      if(key.startsWith('_H13')) {
-        continue;
+    for (let color in totalCounts) {
+      const counts = totalCounts[color];
+
+      const cH13 = counts["Holz 1/3"] || 0;
+      const cH23 = counts["Holz 2/3"] || 0;
+      const cH33 = counts["Holz 3/3"] || 0;
+      if((cH13 + cH23 + cH33) > 0) {
+        const itemH13 = itemDatabase["Holz 1/3"];
+        const itemH23 = itemDatabase["Holz 2/3"];
+        const itemH33 = itemDatabase["Holz 3/3"];
+        const sumHolzMenge = cH13 + cH23 + cH33;
+        const sumHolzCost = cH13*itemH13.price + cH23*itemH23.price + cH33*itemH33.price;
+        const sumHolzWeight = cH13*itemH13.weight + cH23*itemH23.weight + cH33*itemH33.weight;
+
+        delete counts["Holz 1/3"];
+        delete counts["Holz 2/3"];
+        delete counts["Holz 3/3"];
+
+        counts["Holz 1/3"] = sumHolzMenge;
+        counts["_H13_COST"] = sumHolzCost;
+        counts["_H13_WEIGHT"] = sumHolzWeight;
       }
-      const count = totalCounts[key];
-      const item = itemDatabase[key];
-      if(!item) continue; 
 
-      let costThis = count * item.price;
-      let weightThis = count * item.weight;
+      for (let key in counts) {
+        if(key.startsWith('_H13')) continue;
+        const count = counts[key];
+        const item = itemDatabase[key];
+        if(!item) continue;
 
-      if(key === "Holz 1/3" && totalCounts["_H13_COST"]!==undefined) {
-        costThis = totalCounts["_H13_COST"];
-        weightThis = totalCounts["_H13_WEIGHT"];
+        let costThis = count * item.price;
+        let weightThis = count * item.weight;
+
+        if(key === "Holz 1/3" && counts["_H13_COST"]!==undefined) {
+          costThis = counts["_H13_COST"];
+          weightThis = counts["_H13_WEIGHT"];
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><div class="color-box" style="background:${color}"></div> ${color}</td><td>${key}</td><td>${item.articleNumber}</td><td>${count}</td>`;
+        sumTableBody.appendChild(tr);
+
+        totalCost += costThis;
+        totalWeight += weightThis;
       }
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${key}</td><td>${item.articleNumber}</td><td>${count}</td>`;
-      sumTableBody.appendChild(tr);
-
-      totalCost += costThis;
-      totalWeight += weightThis;
     }
 
     totalCostElem.textContent = totalCost.toFixed(2);
@@ -1607,14 +1632,14 @@
      Excel-Export mit xlsx
      --------------------------- */
   function exportToXLSX() {
-    const detailData = [["ID","Spalte","Zeile","Höhe","Blumenkübel/Deckel","N","S","W","O","Extra-Artikel","Extra hinzufügen","Aktionen"]];
+    const detailData = [["ID","Spalte","Zeile","Höhe","Farbe","Blumenkübel/Deckel","N","S","W","O","Extra-Artikel","Extra hinzufügen","Aktionen"]];
     detailTableBody.querySelectorAll('tr').forEach(tr => {
       const rowData = [];
       tr.querySelectorAll('td').forEach(td => rowData.push(td.innerText));
       detailData.push(rowData);
     });
 
-    const sumData = [["Element","Artikel-Nr.","Menge"]];
+    const sumData = [["Farbe","Element","Artikel-Nr.","Menge"]];
     sumTableBody.querySelectorAll('tr').forEach(tr => {
       const rowData = [];
       tr.querySelectorAll('td').forEach(td => rowData.push(td.innerText));
@@ -1671,6 +1696,7 @@
                 // Falls alte Struktur: konvertieren
                 c.extraItems = c.extraItems.map(k=>({key:k,count:1}));
               }
+              if(!c.color) c.color = '#8dcff0';
             });
             cubes = data;
             let maxId = cubes.reduce((max,cc)=>cc.id>max?cc.id:max,0);
