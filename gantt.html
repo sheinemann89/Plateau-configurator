@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aufgabenliste – Produktionsübersicht</title>
+  <style>
+    :root {
+      --day-width: 26px;
+      --label-width: 320px;
+      --grid-line-color: #d9d9d9;
+      --weekend-bg: rgba(200, 200, 200, 0.2);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #f6f7fb;
+      color: #222;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      margin: 0 0 24px;
+      color: #555;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .toolbar-info {
+      flex: 1 1 280px;
+      min-width: 240px;
+      color: #4f5d75;
+      font-size: 14px;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .filter-control {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: #4f5d75;
+    }
+
+    .filter-control label {
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .filter-control select {
+      min-width: 200px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid #cbd5f5;
+      background: #fff;
+      color: #2f3a54;
+      font-size: 14px;
+      font-weight: 600;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .filter-control select:focus {
+      border-color: #7a5dff;
+      box-shadow: 0 0 0 3px rgba(122, 93, 255, 0.2);
+    }
+
+    .download-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #5675ff, #7a5dff);
+      color: white;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(86, 117, 255, 0.3);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+    }
+
+    .download-link:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(86, 117, 255, 0.35);
+    }
+
+    .download-link:active {
+      transform: translateY(0);
+      box-shadow: 0 4px 12px rgba(86, 117, 255, 0.25);
+    }
+
+    .download-link.is-disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .download-link svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    .layout {
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+
+    .panel {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      padding: 20px;
+      flex: 1 1 460px;
+      min-width: 360px;
+    }
+
+    .table-container {
+      max-height: 520px;
+      overflow: auto;
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      background: #f0f4ff;
+      border-bottom: 1px solid #dbe3ff;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      padding: 8px;
+    }
+
+    tbody td {
+      border-bottom: 1px solid #eff1f5;
+      padding: 6px 8px;
+      vertical-align: top;
+      line-height: 1.35;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .gantt-wrapper {
+      overflow-x: auto;
+      padding-bottom: 12px;
+    }
+
+    .gantt-header {
+      display: grid;
+      grid-template-columns: var(--label-width) 1fr;
+      align-items: stretch;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .gantt-header .label-cell {
+      padding: 6px 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #4f5d75;
+    }
+
+    .gantt-months,
+    .gantt-days {
+      position: relative;
+      display: flex;
+      border-left: 1px solid var(--grid-line-color);
+    }
+
+    .month-cell {
+      text-align: center;
+      padding: 4px 0;
+      font-weight: 600;
+      background: #eef3ff;
+      border-right: 1px solid #cbd5f5;
+      color: #44506b;
+    }
+
+    .day-cell {
+      width: var(--day-width);
+      text-align: center;
+      font-size: 11px;
+      padding: 2px 0;
+      border-right: 1px solid var(--grid-line-color);
+      color: #5b677a;
+    }
+
+    .day-cell.weekend {
+      background: var(--weekend-bg);
+      color: #a0a6b5;
+    }
+
+    .gantt-row {
+      display: grid;
+      grid-template-columns: var(--label-width) 1fr;
+      align-items: stretch;
+      margin-bottom: 4px;
+    }
+
+    .gantt-row .label-cell {
+      padding: 10px 12px;
+      border-radius: 10px 0 0 10px;
+      background: #fff;
+      border: 1px solid #e5e8f0;
+      border-right: none;
+      box-shadow: inset -1px 0 0 #e5e8f0;
+    }
+
+    .label-primary {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .label-secondary {
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.4;
+    }
+
+    .gantt-row .grid-cell {
+      position: relative;
+      background: #fff;
+      border: 1px solid #e5e8f0;
+      border-left: none;
+      border-radius: 0 10px 10px 0;
+      overflow: hidden;
+      min-height: 42px;
+    }
+
+    .grid-cell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to right,
+        transparent,
+        transparent calc(var(--day-width) - 1px),
+        var(--grid-line-color) calc(var(--day-width) - 1px),
+        var(--grid-line-color) var(--day-width)
+      );
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .gantt-bars {
+      position: relative;
+      height: 100%;
+      min-height: 42px;
+    }
+
+    .gantt-bar {
+      position: absolute;
+      top: 6px;
+      height: 28px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      padding: 0 14px;
+      background: linear-gradient(135deg, #4f7df0, #7a5dff);
+      box-shadow: 0 3px 12px rgba(74, 104, 255, 0.35);
+      white-space: nowrap;
+    }
+
+    .gantt-bar::after {
+      content: attr(data-range);
+      font-size: 11px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.85);
+      margin-left: 10px;
+    }
+
+    .empty-state {
+      padding: 16px;
+      background: #f5f7ff;
+      border-radius: 8px;
+      color: #4f5d75;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    @media (max-width: 960px) {
+      :root {
+        --label-width: 260px;
+      }
+
+      .gantt-bar {
+        font-size: 11px;
+        padding: 0 6px;
+      }
+
+      .gantt-bar::after {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Fertigungsplanung – Auftragsübersicht</h1>
+  <p class="subtitle">Visualisierung der Fertigungsaufträge mit Soll-Start und Soll-Ende aus der tabellarischen Übersicht.</p>
+
+  <div class="toolbar">
+    <div class="toolbar-info">
+      <p>Lade die komplette Anwendung als eigenständige HTML-Datei herunter und filtere die Fertigungsaufträge nach zuständigen Mitarbeitern.</p>
+    </div>
+    <div class="toolbar-actions">
+      <div class="filter-control">
+        <label for="employee-filter">Mitarbeiter</label>
+        <select id="employee-filter">
+          <option value="all">Alle Mitarbeiter</option>
+        </select>
+      </div>
+      <a id="download-link" class="download-link is-disabled" href="#" download role="button" aria-disabled="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3a1 1 0 0 1 1 1v9.586l2.293-2.293a1 1 0 1 1 1.414 1.414l-4 4a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 1.414-1.414L11 13.586V4a1 1 0 0 1 1-1zm-7 14a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1z" />
+      </svg>
+      Download HTML-Anwendung
+      </a>
+    </div>
+  </div>
+
+  <div class="layout">
+    <section class="panel">
+      <h2>Tabellarische Daten</h2>
+      <div class="table-container">
+        <table id="orders-table">
+          <thead>
+            <tr>
+              <th>BA-Nr.</th>
+              <th>Artikelnummer</th>
+              <th>Matchcode</th>
+              <th>Mitarbeiter</th>
+              <th>Soll-Start</th>
+              <th>Soll-Ende</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" style="flex: 2 1 640px;">
+      <h2>Gantt-Zeitachse</h2>
+      <div class="gantt-wrapper">
+        <div class="gantt-header">
+          <div class="label-cell">Vorgang</div>
+          <div>
+            <div class="gantt-months" id="gantt-months"></div>
+            <div class="gantt-days" id="gantt-days"></div>
+          </div>
+        </div>
+        <div id="gantt-rows"></div>
+      </div>
+    </section>
+  </div>
+
+  <script id="preloaded-orders" type="application/json">
+{
+  "orders": [
+    {
+      "baNumber": 35215,
+      "articleNumber": "41025-01",
+      "matchcode": "Kiste 1",
+      "employees": [
+        "Eisenberger, Joachim"
+      ],
+      "plannedStart": "2015-09-28",
+      "plannedEnd": "2015-10-02"
+    },
+    {
+      "baNumber": 35227,
+      "articleNumber": "41025-02",
+      "matchcode": "Kiste 2",
+      "employees": [
+        "Weisemann, Joachim"
+      ],
+      "plannedStart": "2015-09-30",
+      "plannedEnd": "2015-10-06"
+    },
+    {
+      "baNumber": 35233,
+      "articleNumber": "41025-03",
+      "matchcode": "Sichtschutz",
+      "employees": [
+        "Freese, Julia"
+      ],
+      "plannedStart": "2015-10-01",
+      "plannedEnd": "2015-10-09"
+    },
+    {
+      "baNumber": 35241,
+      "articleNumber": "41025-04",
+      "matchcode": "Podest Nord",
+      "employees": [
+        "Eisenberger, Joachim"
+      ],
+      "plannedStart": "2015-10-05",
+      "plannedEnd": "2015-10-09"
+    },
+    {
+      "baNumber": 35257,
+      "articleNumber": "41025-05",
+      "matchcode": "Brüstung",
+      "employees": [
+        "Heinemann, Joachim"
+      ],
+      "plannedStart": "2015-10-07",
+      "plannedEnd": "2015-10-14"
+    },
+    {
+      "baNumber": 35263,
+      "articleNumber": "41025-06",
+      "matchcode": "Handlauf",
+      "employees": [
+        "Freese, Julia"
+      ],
+      "plannedStart": "2015-10-09",
+      "plannedEnd": "2015-10-16"
+    },
+    {
+      "baNumber": 35271,
+      "articleNumber": "41025-07",
+      "matchcode": "Geländer Süd",
+      "employees": [
+        "Eisenberger, Joachim"
+      ],
+      "plannedStart": "2015-10-12",
+      "plannedEnd": "2015-10-19"
+    },
+    {
+      "baNumber": 35279,
+      "articleNumber": "41025-08",
+      "matchcode": "LED-Leiste",
+      "employees": [
+        "Freese, Julia"
+      ],
+      "plannedStart": "2015-10-14",
+      "plannedEnd": "2015-10-21"
+    },
+    {
+      "baNumber": 35285,
+      "articleNumber": "41025-09",
+      "matchcode": "Sitzbank",
+      "employees": [
+        "Heinemann, Joachim"
+      ],
+      "plannedStart": "2015-09-21",
+      "plannedEnd": "2015-09-30"
+    },
+    {
+      "baNumber": 35291,
+      "articleNumber": "41025-10",
+      "matchcode": "Podest Süd",
+      "employees": [
+        "Eisenberger, Joachim"
+      ],
+      "plannedStart": "2015-09-24",
+      "plannedEnd": "2015-09-29"
+    },
+    {
+      "baNumber": 35297,
+      "articleNumber": "41025-11",
+      "matchcode": "Rampe Ost",
+      "employees": [
+        "Heinemann, Joachim"
+      ],
+      "plannedStart": "2015-10-19",
+      "plannedEnd": "2015-10-23"
+    },
+    {
+      "baNumber": 35303,
+      "articleNumber": "41025-12",
+      "matchcode": "Stufenanlage",
+      "employees": [
+        "Freese, Julia"
+      ],
+      "plannedStart": "2015-10-26",
+      "plannedEnd": "2015-11-03"
+    },
+    {
+      "baNumber": 35435,
+      "articleNumber": "41025-13",
+      "matchcode": "Holzfenster",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-16",
+      "plannedEnd": "2015-10-23"
+    },
+    {
+      "baNumber": 35436,
+      "articleNumber": "41025-14",
+      "matchcode": "Hofgeländer Raster 6 - 8",
+      "employees": [
+        "Weisemann, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-19",
+      "plannedEnd": "2015-10-27"
+    },
+    {
+      "baNumber": 35437,
+      "articleNumber": "41025-15",
+      "matchcode": "Korbgeflecht-Panels Raster 1-2",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-21",
+      "plannedEnd": "2015-10-29"
+    },
+    {
+      "baNumber": 35438,
+      "articleNumber": "41025-16",
+      "matchcode": "Sitzbank Auflager Nord",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Weisemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-22",
+      "plannedEnd": "2015-10-30"
+    },
+    {
+      "baNumber": 35439,
+      "articleNumber": "41025-17",
+      "matchcode": "Sitzbank Auflager Süd",
+      "employees": [
+        "Weisemann, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-23",
+      "plannedEnd": "2015-10-31"
+    },
+    {
+      "baNumber": 35440,
+      "articleNumber": "41025-18",
+      "matchcode": "Sichtschutzpaket Achse 4 - 7",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-26",
+      "plannedEnd": "2015-11-03"
+    },
+    {
+      "baNumber": 35441,
+      "articleNumber": "41025-19",
+      "matchcode": "Sitzbank Auflager Nord",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Weisemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-27",
+      "plannedEnd": "2015-11-05"
+    },
+    {
+      "baNumber": 35442,
+      "articleNumber": "41025-20",
+      "matchcode": "Sitzbank Auflager Süd",
+      "employees": [
+        "Weisemann, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-28",
+      "plannedEnd": "2015-11-06"
+    },
+    {
+      "baNumber": 31056,
+      "articleNumber": "41025-21",
+      "matchcode": "Parklet Typ A (VG 4,0 m, 2 Stück)",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Heinemann, Joachim",
+        "Weisemann, Joachim"
+      ],
+      "plannedStart": "2015-10-12",
+      "plannedEnd": "2015-10-23"
+    },
+    {
+      "baNumber": 31055,
+      "articleNumber": "41025-22",
+      "matchcode": "Parklet Typ B (VG 3,0 m, 1 Stück)",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Weisemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-05",
+      "plannedEnd": "2015-10-12"
+    },
+    {
+      "baNumber": 31054,
+      "articleNumber": "41025-23",
+      "matchcode": "Parklet Typ B (VG 2,5 m, 1 Stück)",
+      "employees": [
+        "Freese, Julia",
+        "Heinemann, Joachim",
+        "Weisemann, Joachim"
+      ],
+      "plannedStart": "2015-09-28",
+      "plannedEnd": "2015-10-07"
+    },
+    {
+      "baNumber": 31053,
+      "articleNumber": "41025-24",
+      "matchcode": "Strangpressprofil Trittstufe",
+      "employees": [
+        "Struger, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-09-21",
+      "plannedEnd": "2015-09-30"
+    }
+  ]
+}
+  </script>
+
+  
+
+  <script>
+    const DAY_WIDTH = 26;
+    const employeeFilter = document.getElementById('employee-filter');
+    const downloadLink = document.getElementById('download-link');
+    const preloadedNode = document.getElementById('preloaded-orders');
+
+    let normalizedOrders = [];
+    let selectedEmployee = 'all';
+    let latestDataset = null;
+    let currentDownloadHref = null;
+
+    const DATE_FORMAT = new Intl.DateTimeFormat('de-DE');
+
+    function parseISO(value) {
+      if (!value) return null;
+      if (value instanceof Date) return value;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function dayDiff(a, b) {
+      const MS_PER_DAY = 24 * 60 * 60 * 1000;
+      return Math.round((b.getTime() - a.getTime()) / MS_PER_DAY);
+    }
+
+    function formatDate(date) {
+      return date ? DATE_FORMAT.format(date) : '';
+    }
+
+    function formatRange(start, end) {
+      if (!start || !end) return '';
+      return `${formatDate(start)} – ${formatDate(end)}`;
+    }
+
+    function normalizeOrders(rawOrders) {
+      return (rawOrders || [])
+        .map(order => {
+          const plannedStartDate = parseISO(order.plannedStart);
+          const plannedEndDate = parseISO(order.plannedEnd);
+          if (!plannedStartDate || !plannedEndDate) {
+            return null;
+          }
+
+          const employees = Array.isArray(order.employees)
+            ? order.employees.filter(Boolean)
+            : (order.employees ? [order.employees] : []);
+
+          const labelParts = [order.articleNumber || order.baNumber, order.matchcode]
+            .filter(Boolean)
+            .map(part => String(part).trim())
+            .filter(Boolean);
+
+          return {
+            ...order,
+            employees,
+            plannedStartDate,
+            plannedEndDate,
+            label: labelParts.join(' – ')
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+          if (a.plannedStartDate.getTime() === b.plannedStartDate.getTime()) {
+            return a.plannedEndDate - b.plannedEndDate;
+          }
+          return a.plannedStartDate - b.plannedStartDate;
+        });
+    }
+
+    function populateEmployeeFilter(orders) {
+      if (!employeeFilter) return;
+      const previous = employeeFilter.value;
+      const names = new Set();
+
+      orders.forEach(order => {
+        order.employees.forEach(name => names.add(name));
+      });
+
+      employeeFilter.innerHTML = '';
+      const allOption = document.createElement('option');
+      allOption.value = 'all';
+      allOption.textContent = 'Alle Mitarbeiter';
+      employeeFilter.appendChild(allOption);
+
+      Array.from(names)
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, 'de-DE'))
+        .forEach(name => {
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          employeeFilter.appendChild(option);
+        });
+
+      if (previous && names.has(previous)) {
+        employeeFilter.value = previous;
+        selectedEmployee = previous;
+      } else {
+        employeeFilter.value = 'all';
+        selectedEmployee = 'all';
+      }
+    }
+
+    function filterOrdersByEmployee(orders, employee) {
+      if (!employee || employee === 'all') {
+        return orders;
+      }
+      return orders.filter(order => order.employees.includes(employee));
+    }
+
+    function buildTimelineBounds(orders) {
+      let minDate = null;
+      let maxDate = null;
+
+      orders.forEach(order => {
+        if (!minDate || order.plannedStartDate < minDate) {
+          minDate = order.plannedStartDate;
+        }
+        if (!maxDate || order.plannedEndDate > maxDate) {
+          maxDate = order.plannedEndDate;
+        }
+      });
+
+      return { minDate, maxDate };
+    }
+
+    function generateDays(minDate, maxDate) {
+      const days = [];
+      const cursor = new Date(minDate);
+      while (cursor <= maxDate) {
+        days.push(new Date(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return days;
+    }
+
+    function renderTimelineHeader(days) {
+      const monthsContainer = document.getElementById('gantt-months');
+      const daysContainer = document.getElementById('gantt-days');
+      if (!monthsContainer || !daysContainer) return;
+
+      monthsContainer.innerHTML = '';
+      daysContainer.innerHTML = '';
+
+      if (!days.length) {
+        return;
+      }
+
+      const totalWidth = days.length * DAY_WIDTH;
+      monthsContainer.style.width = `${totalWidth}px`;
+      daysContainer.style.width = `${totalWidth}px`;
+
+      const monthNames = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' });
+
+      let currentMonth = days[0].getMonth();
+      let currentYear = days[0].getFullYear();
+      let spanCount = 0;
+
+      days.forEach(day => {
+        const isNewMonth = day.getMonth() !== currentMonth || day.getFullYear() !== currentYear;
+        if (isNewMonth) {
+          const monthCell = document.createElement('div');
+          monthCell.className = 'month-cell';
+          monthCell.style.width = `${spanCount * DAY_WIDTH}px`;
+          monthCell.textContent = monthNames.format(new Date(currentYear, currentMonth, 1));
+          monthsContainer.appendChild(monthCell);
+
+          currentMonth = day.getMonth();
+          currentYear = day.getFullYear();
+          spanCount = 0;
+        }
+        spanCount += 1;
+
+        const dayCell = document.createElement('div');
+        dayCell.className = 'day-cell';
+        dayCell.textContent = day.getDate();
+        if (day.getDay() === 0 || day.getDay() === 6) {
+          dayCell.classList.add('weekend');
+        }
+        daysContainer.appendChild(dayCell);
+      });
+
+      if (spanCount > 0) {
+        const monthCell = document.createElement('div');
+        monthCell.className = 'month-cell';
+        monthCell.style.width = `${spanCount * DAY_WIDTH}px`;
+        monthCell.textContent = monthNames.format(new Date(currentYear, currentMonth, 1));
+        monthsContainer.appendChild(monthCell);
+      }
+    }
+
+    function renderTable(orders) {
+      const tbody = document.querySelector('#orders-table tbody');
+      if (!tbody) return;
+
+      tbody.innerHTML = '';
+
+      orders.forEach(order => {
+        const tr = document.createElement('tr');
+        const values = [
+          order.baNumber ?? '–',
+          order.articleNumber || '–',
+          order.matchcode || '–',
+          order.employees.length ? order.employees.join('<br>') : '–',
+          formatDate(order.plannedStartDate),
+          formatDate(order.plannedEndDate)
+        ];
+
+        values.forEach(value => {
+          const td = document.createElement('td');
+          td.innerHTML = value;
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderGanttRows(orders, minDate, totalDays) {
+      const rowsContainer = document.getElementById('gantt-rows');
+      if (!rowsContainer) return;
+      rowsContainer.innerHTML = '';
+
+      const fullWidth = totalDays * DAY_WIDTH;
+
+      orders.forEach(order => {
+        const row = document.createElement('div');
+        row.className = 'gantt-row';
+
+        const labelCell = document.createElement('div');
+        labelCell.className = 'label-cell';
+
+        const title = document.createElement('div');
+        title.className = 'label-primary';
+        title.textContent = order.label || `BA ${order.baNumber}`;
+
+        const meta = document.createElement('div');
+        meta.className = 'label-secondary';
+        meta.textContent = order.employees.join(', ');
+
+        labelCell.appendChild(title);
+        labelCell.appendChild(meta);
+
+        const gridCell = document.createElement('div');
+        gridCell.className = 'grid-cell';
+        gridCell.style.setProperty('--day-width', `${DAY_WIDTH}px`);
+        gridCell.style.width = `${fullWidth}px`;
+        gridCell.style.minWidth = `${fullWidth}px`;
+
+        const bars = document.createElement('div');
+        bars.className = 'gantt-bars';
+        bars.style.width = `${fullWidth}px`;
+
+        const offset = dayDiff(minDate, order.plannedStartDate);
+        const duration = dayDiff(order.plannedStartDate, order.plannedEndDate) + 1;
+
+        const bar = document.createElement('div');
+        bar.className = 'gantt-bar';
+        bar.style.left = `${offset * DAY_WIDTH}px`;
+        bar.style.width = `${Math.max(duration * DAY_WIDTH - 6, DAY_WIDTH)}px`;
+        bar.textContent = 'Fertigung';
+        bar.title = `Fertigung: ${formatRange(order.plannedStartDate, order.plannedEndDate)}`;
+        bar.dataset.range = formatRange(order.plannedStartDate, order.plannedEndDate);
+
+        bars.appendChild(bar);
+        gridCell.appendChild(bars);
+
+        row.appendChild(labelCell);
+        row.appendChild(gridCell);
+        rowsContainer.appendChild(row);
+      });
+    }
+
+    function renderEmptyTimelineState() {
+      const monthsContainer = document.getElementById('gantt-months');
+      const daysContainer = document.getElementById('gantt-days');
+      const rowsContainer = document.getElementById('gantt-rows');
+
+      if (monthsContainer) monthsContainer.innerHTML = '';
+      if (daysContainer) daysContainer.innerHTML = '';
+      if (rowsContainer) {
+        rowsContainer.innerHTML = '';
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.textContent = 'Keine Fertigungsaufträge für die aktuelle Auswahl.';
+        rowsContainer.appendChild(empty);
+      }
+    }
+
+    function updateView() {
+      const filtered = filterOrdersByEmployee(normalizedOrders, selectedEmployee);
+      renderTable(filtered);
+
+      if (!filtered.length) {
+        renderEmptyTimelineState();
+        return;
+      }
+
+      const { minDate, maxDate } = buildTimelineBounds(filtered);
+      if (!minDate || !maxDate) {
+        renderEmptyTimelineState();
+        return;
+      }
+
+      const days = generateDays(minDate, maxDate);
+      renderTimelineHeader(days);
+      renderGanttRows(filtered, minDate, days.length);
+    }
+
+    function getPreloadedData() {
+      if (!preloadedNode) return null;
+      try {
+        return JSON.parse(preloadedNode.textContent);
+      } catch (error) {
+        console.error('Fehler beim Lesen der eingebetteten Daten', error);
+        return null;
+      }
+    }
+
+    function setPreloadedData(data) {
+      if (preloadedNode) {
+        preloadedNode.textContent = JSON.stringify(data, null, 2);
+      }
+    }
+
+    function disableDownloadLink() {
+      if (!downloadLink) return;
+      if (currentDownloadHref) {
+        URL.revokeObjectURL(currentDownloadHref);
+        currentDownloadHref = null;
+      }
+      downloadLink.href = '#';
+      downloadLink.classList.add('is-disabled');
+      downloadLink.setAttribute('aria-disabled', 'true');
+      downloadLink.removeAttribute('download');
+    }
+
+    function prepareDownloadLink(dataset) {
+      if (!downloadLink) return;
+      if (!dataset) {
+        disableDownloadLink();
+        return;
+      }
+
+      const previousHref = downloadLink.getAttribute('href');
+      if (previousHref && previousHref.startsWith('blob:')) {
+        URL.revokeObjectURL(previousHref);
+      }
+
+      downloadLink.href = '#';
+      downloadLink.classList.remove('is-disabled');
+      downloadLink.setAttribute('aria-disabled', 'false');
+
+      setPreloadedData(dataset);
+      const htmlSource = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+      const blob = new Blob([htmlSource], { type: 'text/html' });
+      currentDownloadHref = URL.createObjectURL(blob);
+      downloadLink.href = currentDownloadHref;
+      downloadLink.setAttribute('download', 'fertigungsplanung.html');
+    }
+
+    disableDownloadLink();
+
+    function initialize(data) {
+      latestDataset = data;
+      normalizedOrders = normalizeOrders(data?.orders || []);
+      populateEmployeeFilter(normalizedOrders);
+
+      if (!normalizedOrders.length) {
+        console.warn('Keine Fertigungsaufträge für die Darstellung vorhanden.');
+        renderTable([]);
+        renderEmptyTimelineState();
+        disableDownloadLink();
+        return;
+      }
+
+      selectedEmployee = employeeFilter?.value || 'all';
+      updateView();
+      prepareDownloadLink(data);
+    }
+
+    async function loadOrders() {
+      const embedded = getPreloadedData();
+      try {
+        const response = await fetch('data/input-data.json', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const remoteData = await response.json();
+        setPreloadedData(remoteData);
+        initialize(remoteData);
+      } catch (error) {
+        if (embedded) {
+          console.warn('Falle auf eingebettete Daten zurück:', error);
+          initialize(embedded);
+        } else {
+          console.error('Fehler beim Laden der Daten und keine eingebetteten Daten verfügbar.', error);
+          disableDownloadLink();
+        }
+      }
+    }
+
+    employeeFilter?.addEventListener('change', event => {
+      selectedEmployee = event.target.value;
+      updateView();
+    });
+
+    downloadLink?.addEventListener('click', event => {
+      if (downloadLink.classList.contains('is-disabled')) {
+        event.preventDefault();
+        alert('Es stehen keine Daten zum Export zur Verfügung.');
+        return;
+      }
+
+      if (!latestDataset) {
+        prepareDownloadLink(getPreloadedData());
+      }
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (currentDownloadHref) {
+        URL.revokeObjectURL(currentDownloadHref);
+      }
+    });
+
+    loadOrders();
+  </script>
+
+</body>
+</html>
