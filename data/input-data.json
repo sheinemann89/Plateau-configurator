@@ -1,0 +1,268 @@
+{
+  "orders": [
+    {
+      "baNumber": 35215,
+      "articleNumber": "41025-01",
+      "matchcode": "Kiste 1",
+      "employees": [
+        "Eisenberger, Joachim"
+      ],
+      "plannedStart": "2015-09-28",
+      "plannedEnd": "2015-10-02"
+    },
+    {
+      "baNumber": 35227,
+      "articleNumber": "41025-02",
+      "matchcode": "Kiste 2",
+      "employees": [
+        "Weisemann, Joachim"
+      ],
+      "plannedStart": "2015-09-30",
+      "plannedEnd": "2015-10-06"
+    },
+    {
+      "baNumber": 35233,
+      "articleNumber": "41025-03",
+      "matchcode": "Sichtschutz",
+      "employees": [
+        "Freese, Julia"
+      ],
+      "plannedStart": "2015-10-01",
+      "plannedEnd": "2015-10-09"
+    },
+    {
+      "baNumber": 35241,
+      "articleNumber": "41025-04",
+      "matchcode": "Podest Nord",
+      "employees": [
+        "Eisenberger, Joachim"
+      ],
+      "plannedStart": "2015-10-05",
+      "plannedEnd": "2015-10-09"
+    },
+    {
+      "baNumber": 35257,
+      "articleNumber": "41025-05",
+      "matchcode": "Brüstung",
+      "employees": [
+        "Heinemann, Joachim"
+      ],
+      "plannedStart": "2015-10-07",
+      "plannedEnd": "2015-10-14"
+    },
+    {
+      "baNumber": 35263,
+      "articleNumber": "41025-06",
+      "matchcode": "Handlauf",
+      "employees": [
+        "Freese, Julia"
+      ],
+      "plannedStart": "2015-10-09",
+      "plannedEnd": "2015-10-16"
+    },
+    {
+      "baNumber": 35271,
+      "articleNumber": "41025-07",
+      "matchcode": "Geländer Süd",
+      "employees": [
+        "Eisenberger, Joachim"
+      ],
+      "plannedStart": "2015-10-12",
+      "plannedEnd": "2015-10-19"
+    },
+    {
+      "baNumber": 35279,
+      "articleNumber": "41025-08",
+      "matchcode": "LED-Leiste",
+      "employees": [
+        "Freese, Julia"
+      ],
+      "plannedStart": "2015-10-14",
+      "plannedEnd": "2015-10-21"
+    },
+    {
+      "baNumber": 35285,
+      "articleNumber": "41025-09",
+      "matchcode": "Sitzbank",
+      "employees": [
+        "Heinemann, Joachim"
+      ],
+      "plannedStart": "2015-09-21",
+      "plannedEnd": "2015-09-30"
+    },
+    {
+      "baNumber": 35291,
+      "articleNumber": "41025-10",
+      "matchcode": "Podest Süd",
+      "employees": [
+        "Eisenberger, Joachim"
+      ],
+      "plannedStart": "2015-09-24",
+      "plannedEnd": "2015-09-29"
+    },
+    {
+      "baNumber": 35297,
+      "articleNumber": "41025-11",
+      "matchcode": "Rampe Ost",
+      "employees": [
+        "Heinemann, Joachim"
+      ],
+      "plannedStart": "2015-10-19",
+      "plannedEnd": "2015-10-23"
+    },
+    {
+      "baNumber": 35303,
+      "articleNumber": "41025-12",
+      "matchcode": "Stufenanlage",
+      "employees": [
+        "Freese, Julia"
+      ],
+      "plannedStart": "2015-10-26",
+      "plannedEnd": "2015-11-03"
+    },
+    {
+      "baNumber": 35435,
+      "articleNumber": "41025-13",
+      "matchcode": "Holzfenster",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-16",
+      "plannedEnd": "2015-10-23"
+    },
+    {
+      "baNumber": 35436,
+      "articleNumber": "41025-14",
+      "matchcode": "Hofgeländer Raster 6 - 8",
+      "employees": [
+        "Weisemann, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-19",
+      "plannedEnd": "2015-10-27"
+    },
+    {
+      "baNumber": 35437,
+      "articleNumber": "41025-15",
+      "matchcode": "Korbgeflecht-Panels Raster 1-2",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-21",
+      "plannedEnd": "2015-10-29"
+    },
+    {
+      "baNumber": 35438,
+      "articleNumber": "41025-16",
+      "matchcode": "Sitzbank Auflager Nord",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Weisemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-22",
+      "plannedEnd": "2015-10-30"
+    },
+    {
+      "baNumber": 35439,
+      "articleNumber": "41025-17",
+      "matchcode": "Sitzbank Auflager Süd",
+      "employees": [
+        "Weisemann, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-23",
+      "plannedEnd": "2015-10-31"
+    },
+    {
+      "baNumber": 35440,
+      "articleNumber": "41025-18",
+      "matchcode": "Sichtschutzpaket Achse 4 - 7",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-26",
+      "plannedEnd": "2015-11-03"
+    },
+    {
+      "baNumber": 35441,
+      "articleNumber": "41025-19",
+      "matchcode": "Sitzbank Auflager Nord",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Weisemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-27",
+      "plannedEnd": "2015-11-05"
+    },
+    {
+      "baNumber": 35442,
+      "articleNumber": "41025-20",
+      "matchcode": "Sitzbank Auflager Süd",
+      "employees": [
+        "Weisemann, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-28",
+      "plannedEnd": "2015-11-06"
+    },
+    {
+      "baNumber": 31056,
+      "articleNumber": "41025-21",
+      "matchcode": "Parklet Typ A (VG 4,0 m, 2 Stück)",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Heinemann, Joachim",
+        "Weisemann, Joachim"
+      ],
+      "plannedStart": "2015-10-12",
+      "plannedEnd": "2015-10-23"
+    },
+    {
+      "baNumber": 31055,
+      "articleNumber": "41025-22",
+      "matchcode": "Parklet Typ B (VG 3,0 m, 1 Stück)",
+      "employees": [
+        "Eisenberger, Joachim",
+        "Weisemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-10-05",
+      "plannedEnd": "2015-10-12"
+    },
+    {
+      "baNumber": 31054,
+      "articleNumber": "41025-23",
+      "matchcode": "Parklet Typ B (VG 2,5 m, 1 Stück)",
+      "employees": [
+        "Freese, Julia",
+        "Heinemann, Joachim",
+        "Weisemann, Joachim"
+      ],
+      "plannedStart": "2015-09-28",
+      "plannedEnd": "2015-10-07"
+    },
+    {
+      "baNumber": 31053,
+      "articleNumber": "41025-24",
+      "matchcode": "Strangpressprofil Trittstufe",
+      "employees": [
+        "Struger, Joachim",
+        "Heinemann, Joachim",
+        "Schuler, Bernd"
+      ],
+      "plannedStart": "2015-09-21",
+      "plannedEnd": "2015-09-30"
+    }
+  ]
+}
